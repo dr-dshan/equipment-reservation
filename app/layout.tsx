@@ -4,20 +4,15 @@ import RegisterSW from "@/components/RegisterSW";
 
 export const metadata: Metadata = {
   title: "Equipment Reservation",
-  description: "Equipment reservation system for shared research facilities.",
+  description: "Shared equipment reservation system.",
   manifest: "/manifest.json",
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: "default",
-    title: "Equipment Reservation"
-  }
+  appleWebApp: { capable: true, title: "Equipment Reservation", statusBarStyle: "default" }
 };
 
 export const viewport: Viewport = {
   themeColor: "#111827",
   width: "device-width",
-  initialScale: 1,
-  maximumScale: 1
+  initialScale: 1
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -1,16 +1,17 @@
 create extension if not exists pgcrypto;
 
-create table if not exists public.users (
-  id uuid primary key default gen_random_uuid(),
+create table if not exists public.profiles (
+  id uuid primary key references auth.users(id) on delete cascade,
   email text unique not null,
-  name text,
-  active boolean not null default true,
+  name text not null,
+  supervisor text not null,
+  status text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
   created_at timestamptz not null default now()
 );
 
 create table if not exists public.equipment_permissions (
   id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references public.users(id) on delete cascade,
+  user_id uuid not null references public.profiles(id) on delete cascade,
   equipment text not null check (equipment in ('Picomaster', 'Ellionix', 'Magnetic Annealing')),
   allowed boolean not null default true,
   created_at timestamptz not null default now(),
@@ -19,6 +20,7 @@ create table if not exists public.equipment_permissions (
 
 create table if not exists public.reservations (
   id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
   equipment text not null check (equipment in ('Picomaster', 'Ellionix', 'Magnetic Annealing')),
   name text not null,
   email text not null,
@@ -35,15 +37,15 @@ create table if not exists public.reservations (
   constraint valid_time check (end_time > start_time)
 );
 
-create index if not exists users_email_idx on public.users (email);
+create index if not exists profiles_email_idx on public.profiles (email);
 create index if not exists equipment_permissions_user_equipment_idx on public.equipment_permissions (user_id, equipment);
 create index if not exists reservations_equipment_time_idx on public.reservations (equipment, start_time, end_time);
 create index if not exists reservations_status_idx on public.reservations (status);
 create index if not exists reservations_reminder_idx on public.reservations (status, reminder_sent_at, start_time);
 
-alter table public.users enable row level security;
+alter table public.profiles enable row level security;
 alter table public.equipment_permissions enable row level security;
 alter table public.reservations enable row level security;
 
--- The browser does not access these tables directly.
--- The Next.js server uses SUPABASE_SERVICE_ROLE_KEY, so no public RLS policies are required.
+-- No public policies are required.
+-- The app reads/writes through server-side API routes using the service-role key.
