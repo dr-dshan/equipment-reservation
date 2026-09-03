@@ -156,3 +156,72 @@ input[type="date"],input[type="time"] { color-scheme:dark; }
   color:#ffe5b8!important;
   border-color:#f39a21!important;
 }
+
+
+/* PWA install control */
+.install-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid rgba(22,140,255,.50) !important;
+  color: #fff !important;
+  background: rgba(22,140,255,.15) !important;
+}
+
+.install-button:hover {
+  background: rgba(22,140,255,.25) !important;
+  border-color: var(--blue) !important;
+}
+
+.install-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border: 1px solid rgba(255,255,255,.32);
+  border-radius: 5px;
+  font-size: 13px;
+  line-height: 1;
+}
+
+.install-help-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 250;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  background: rgba(0,0,0,.76);
+}
+
+.install-help {
+  position: relative;
+  width: min(480px,100%);
+  padding: 28px;
+  color: var(--text);
+  background: #061522;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  box-shadow: 0 28px 70px rgba(0,0,0,.48);
+}
+
+.install-help-close {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  border: 0;
+  color: var(--muted);
+  background: transparent;
+  font-size: 28px;
+  cursor: pointer;
+}
+
+.install-steps {
+  margin: 20px 0 24px;
+  padding-left: 24px;
+  color: var(--muted);
+  line-height: 1.9;
+}
+
+.install-steps strong { color: var(--text); }

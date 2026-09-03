@@ -91,3 +91,8 @@ Android Chrome:
 
 iPhone Safari:
 - Share → Add to Home Screen
+
+
+## Install button
+
+The top navigation includes an `Install App` button. On supported Chromium browsers it opens the native install prompt. On iPhone/iPad it shows Safari → Share → Add to Home Screen instructions.

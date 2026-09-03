@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { getBrowserSupabase } from "@/lib/supabaseClient";
+import InstallButton from "./InstallButton";
 
 export default function Nav({ isAdmin=false }: { isAdmin?: boolean }) {
   const router = useRouter();
@@ -15,6 +16,7 @@ export default function Nav({ isAdmin=false }: { isAdmin?: boolean }) {
       <div className="nav-links">
         <Link href="/">Calendar</Link>
         {isAdmin && <Link href="/admin">Admin</Link>}
+        <InstallButton />
         <button onClick={logout}>Log out</button>
       </div>
     </div>
