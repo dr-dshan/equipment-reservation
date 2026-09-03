@@ -87,8 +87,8 @@ export default function BookingCalendar(){
           headerToolbar={{ left:"prev,next today", center:"title", right: mobile ? "timeGridDay" : "dayGridMonth,timeGridWeek,timeGridDay" }}
           height="auto"
           allDaySlot={false}
-          slotMinTime="08:00:00"
-          slotMaxTime="23:00:00"
+          slotMinTime="00:00:00"
+          slotMaxTime="24:00:00"
           slotDuration="00:30:00"
           nowIndicator
           selectable
