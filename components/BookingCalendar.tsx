@@ -6,8 +6,11 @@ import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin, { DateClickArg } from "@fullcalendar/interaction";
 import BookingModal from "./BookingModal";
+import InstallButton from "./InstallButton";
 
 const EQUIPMENT = ["Picomaster", "Ellionix", "Magnetic Annealing"] as const;
+
+type EquipmentName = (typeof EQUIPMENT)[number];
 
 type ReservationEvent = {
   id: string;
@@ -18,113 +21,96 @@ type ReservationEvent = {
 };
 
 export default function BookingCalendar() {
-  const [equipment, setEquipment] = useState<(typeof EQUIPMENT)[number]>("Picomaster");
+  const [equipment, setEquipment] = useState<EquipmentName>("Picomaster");
   const [events, setEvents] = useState<ReservationEvent[]>([]);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [message, setMessage] = useState("Tap an empty time slot to request a reservation.");
-  const [calendarView, setCalendarView] = useState("timeGridWeek");
+  const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
-    const chooseView = () => setCalendarView(window.innerWidth <= 720 ? "timeGridDay" : "timeGridWeek");
-    chooseView();
-    window.addEventListener("resize", chooseView);
-    return () => window.removeEventListener("resize", chooseView);
+    const check = () => setIsMobile(window.matchMedia("(max-width: 760px)").matches);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
   }, []);
 
   const loadEvents = useCallback(async () => {
     const res = await fetch(`/api/reservations?equipment=${encodeURIComponent(equipment)}`, { cache: "no-store" });
     if (!res.ok) {
-      setMessage("Could not load the reservation calendar.");
+      setMessage("Could not load reservations.");
       return;
     }
     const data = await res.json();
     setEvents(data.events ?? []);
   }, [equipment]);
 
-  useEffect(() => { loadEvents(); }, [loadEvents]);
+  useEffect(() => {
+    loadEvents();
+  }, [loadEvents]);
+
+  const initialView = useMemo(() => (isMobile ? "timeGridDay" : "timeGridWeek"), [isMobile]);
 
   function handleDateClick(arg: DateClickArg) {
     const date = arg.dateStr.length > 10 ? arg.dateStr.slice(0, 16) : `${arg.dateStr}T09:00`;
     setSelectedDate(date);
   }
 
-  const calendarEvents = useMemo(() => events.map((e) => ({
-    id: e.id,
-    title: e.title,
-    start: e.start,
-    end: e.end,
-    classNames: [e.status === "approved" ? "event-approved" : "event-pending"],
-    extendedProps: { status: e.status },
-  })), [events]);
-
   return (
-    <section className="booking-shell">
-      <div className="equipment-section">
-        <div className="section-heading">
-          <span>Equipment</span>
-          <small>Choose an instrument to view its schedule.</small>
-        </div>
-        <div className="equipment-tabs" role="tablist" aria-label="Equipment">
+    <section className="booking-card">
+      <div className="top-row">
+        <div className="equipment-tabs">
           {EQUIPMENT.map((name) => (
             <button
               key={name}
-              role="tab"
-              aria-selected={equipment === name}
               className={`equipment-tab ${equipment === name ? "active" : ""}`}
               onClick={() => setEquipment(name)}
             >
-              <span className="equipment-dot" />
               {name}
             </button>
           ))}
         </div>
+        <InstallButton />
       </div>
 
-      <div className="calendar-card">
-        <div className="calendar-card-head">
+      <div className="calendar-help">
+        <span className="legend"><span className="legend-dot approved" /> Approved</span>
+        <span className="legend"><span className="legend-dot pending" /> Pending</span>
+        <span>Reservations show time and user name.</span>
+      </div>
+
+      <FullCalendar
+        key={initialView}
+        plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+        initialView={initialView}
+        headerToolbar={{
+          left: "prev,next today",
+          center: "title",
+          right: isMobile ? "timeGridDay" : "dayGridMonth,timeGridWeek,timeGridDay"
+        }}
+        height="auto"
+        allDaySlot={false}
+        slotMinTime="08:00:00"
+        slotMaxTime="23:00:00"
+        slotDuration="00:30:00"
+        nowIndicator
+        selectable
+        dateClick={handleDateClick}
+        events={events.map((e) => ({
+          id: e.id,
+          title: e.title,
+          start: e.start,
+          end: e.end,
+          classNames: [e.status === "approved" ? "event-approved" : "event-pending"],
+        }))}
+        eventContent={(arg) => (
           <div>
-            <span className="calendar-equipment-label">CURRENT SCHEDULE</span>
-            <h2>{equipment}</h2>
+            <strong>{arg.timeText}</strong>
+            <div>{arg.event.title}</div>
           </div>
-          <div className="calendar-help">
-            <span className="legend"><span className="legend-dot approved" /> Approved</span>
-            <span className="legend"><span className="legend-dot pending" /> Pending</span>
-          </div>
-        </div>
+        )}
+      />
 
-        <div className="calendar-frame">
-          <FullCalendar
-            key={calendarView}
-            plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-            initialView={calendarView}
-            headerToolbar={calendarView === "timeGridDay"
-              ? { left: "prev,next", center: "title", right: "today" }
-              : { left: "prev,next today", center: "title", right: "dayGridMonth,timeGridWeek" }}
-            height="auto"
-            allDaySlot={false}
-            slotMinTime="08:00:00"
-            slotMaxTime="23:00:00"
-            slotDuration="00:30:00"
-            slotLabelInterval="01:00:00"
-            nowIndicator
-            selectable
-            selectMirror
-            dateClick={handleDateClick}
-            events={calendarEvents}
-            eventContent={(arg) => (
-              <div className="event-inner">
-                <strong>{arg.timeText}</strong>
-                <span>{arg.event.title}</span>
-              </div>
-            )}
-          />
-        </div>
-
-        <div className="status-line">
-          <span className="status-icon">i</span>
-          {message}
-        </div>
-      </div>
+      <div className="status-line">{message}</div>
 
       {selectedDate && (
         <BookingModal

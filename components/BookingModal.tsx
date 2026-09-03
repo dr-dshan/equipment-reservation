@@ -15,6 +15,7 @@ export default function BookingModal({
 }) {
   const initialDate = initialStart.slice(0, 10);
   const initialTime = initialStart.length >= 16 ? initialStart.slice(11, 16) : "09:00";
+
   const defaultEnd = useMemo(() => {
     const [h, m] = initialTime.split(":").map(Number);
     return `${String(Math.min(h + 1, 23)).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
@@ -30,6 +31,7 @@ export default function BookingModal({
     purpose: "",
     notes: "",
   });
+
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -43,23 +45,21 @@ export default function BookingModal({
 
     const start = new Date(`${form.date}T${form.startTime}:00`);
     const end = new Date(`${form.date}T${form.endTime}:00`);
+
     if (!(end > start)) {
       setError("End time must be later than start time.");
       return;
     }
 
     setSubmitting(true);
+
     try {
       const res = await fetch("/api/reservations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          equipment,
-          ...form,
-          start: start.toISOString(),
-          end: end.toISOString(),
-        }),
+        body: JSON.stringify({ equipment, ...form, start: start.toISOString(), end: end.toISOString() }),
       });
+
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Could not submit reservation.");
       onSubmitted();
@@ -75,7 +75,7 @@ export default function BookingModal({
       <div className="modal-card" onMouseDown={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <div>
-            <div className="eyebrow">RESERVATION REQUEST</div>
+            <p className="eyebrow">RESERVATION REQUEST</p>
             <h2>{equipment}</h2>
           </div>
           <button className="close-btn" aria-label="Close" onClick={onClose}>×</button>
@@ -85,39 +85,41 @@ export default function BookingModal({
           <div className="form-grid">
             <div className="field">
               <label>Date</label>
-              <input type="date" value={form.date} onChange={(e) => setField("date", e.target.value)} required />
+              <input type="date" required value={form.date} onChange={(e) => setField("date", e.target.value)} />
             </div>
+
             <div className="field">
               <label>Name</label>
-              <input value={form.name} onChange={(e) => setField("name", e.target.value)} required />
+              <input required value={form.name} onChange={(e) => setField("name", e.target.value)} />
             </div>
+
             <div className="field">
               <label>Start time</label>
-              <input type="time" value={form.startTime} onChange={(e) => setField("startTime", e.target.value)} required />
+              <input type="time" required value={form.startTime} onChange={(e) => setField("startTime", e.target.value)} />
             </div>
+
             <div className="field">
               <label>End time</label>
-              <input type="time" value={form.endTime} onChange={(e) => setField("endTime", e.target.value)} required />
+              <input type="time" required value={form.endTime} onChange={(e) => setField("endTime", e.target.value)} />
             </div>
+
             <div className="field full">
               <label>Email</label>
-              <input type="email" value={form.email} onChange={(e) => setField("email", e.target.value)} required />
+              <input type="email" required value={form.email} onChange={(e) => setField("email", e.target.value)} />
             </div>
+
             <div className="field full">
               <label>Supervisor</label>
-              <input
-                value={form.supervisor}
-                onChange={(e) => setField("supervisor", e.target.value)}
-                placeholder="e.g., Dong-Soo Han"
-                required
-              />
+              <input required value={form.supervisor} onChange={(e) => setField("supervisor", e.target.value)} />
             </div>
+
             <div className="field full">
               <label>Purpose</label>
-              <textarea value={form.purpose} onChange={(e) => setField("purpose", e.target.value)} required />
+              <textarea required value={form.purpose} onChange={(e) => setField("purpose", e.target.value)} />
             </div>
+
             <div className="field full">
-              <label>Notes (optional)</label>
+              <label>Notes</label>
               <textarea value={form.notes} onChange={(e) => setField("notes", e.target.value)} />
             </div>
           </div>
@@ -125,8 +127,8 @@ export default function BookingModal({
           {error && <div className="form-error">{error}</div>}
 
           <div className="actions">
-            <button type="button" className="btn secondary" onClick={onClose}>Cancel</button>
-            <button type="submit" className="btn primary" disabled={submitting}>
+            <button className="btn secondary" type="button" onClick={onClose}>Cancel</button>
+            <button className="btn primary" type="submit" disabled={submitting}>
               {submitting ? "Submitting..." : "Request Reservation"}
             </button>
           </div>

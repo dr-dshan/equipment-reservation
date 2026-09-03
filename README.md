@@ -1,397 +1,310 @@
-# Equipment Reservation
+# Equipment Reservation Complete
 
-A standalone, mobile-first reservation app for three shared instruments:
+This is a standalone PWA equipment reservation system.
 
+Equipment:
 - Picomaster
 - Ellionix
 - Magnetic Annealing
 
-It is intentionally independent from any existing laboratory website. The project is a **PWA (Progressive Web App)**, so users can open it in a browser or install it on an iPhone/Android home screen and launch it like an app.
-
-## Included features
-
-- Separate reservation website
-- Responsive desktop + mobile interface
-- Installable PWA with app icon
-- Desktop default: weekly calendar
-- Mobile default: daily time-grid calendar
-- 30-minute clickable booking slots
-- Reservation form:
-  - Name
-  - Email
-  - Supervisor
-  - Start time
-  - End time
-  - Purpose
-  - Notes
-- Public calendar shows reservation time + reservation user name
-- Approved and Pending reservations use different colors
-- Declined reservations disappear from the public calendar
-- Allow-list (`allowed_users`) blocks unauthorized email addresses
-- Overlap prevention for both Pending and Approved reservations
-- Administrator email for every request
-- APPROVE / DECLINE buttons in the administrator email
-- Result email to the requester after approval/decline
-- Approved reservations receive an automatic reminder about 5 minutes before start
-- Reminder is sent only once
+Main features:
+- PC weekly calendar
+- Mobile day calendar
+- Home-screen installation as a PWA
+- Name / Email / Supervisor / Purpose / Notes
+- Equipment-specific user permission
+- Pending / Approved reservation colors
+- Reservation requester name shown on calendar
+- Admin approval email with APPROVE / DECLINE buttons
+- User result email after approval or decline
+- 5-minute reservation reminder email
+- Reminder sent only once per approved reservation
 
 ---
 
-# Architecture
+# 1. Upload this project to GitHub
 
-```text
-Phone / PC
-   |
-   v
-Next.js PWA on Vercel
-   |
-   +---- Supabase Postgres (reservations + authorized users)
-   |
-   +---- Resend (transactional email)
-   |
-   +---- Supabase Cron -- every minute --> /api/reminders
-```
+Create a new GitHub repository:
 
-GitHub is only the source repository. Vercel hosts the application and secure API routes.
+`equipment-reservation`
+
+Upload all files in this folder.
+
+Do not upload `.env.local`.
 
 ---
 
-# 1. Requirements
+# 2. Create Supabase project
 
-Install Node.js 20 or newer and Git.
+Create a new Supabase project.
 
-You will need accounts/projects for:
+Then open:
 
-1. GitHub
-2. Vercel
-3. Supabase
-4. Resend
+`SQL Editor → New query`
 
----
+Paste and run:
 
-# 2. Create the Supabase database
-
-Create a Supabase project, open **SQL Editor**, paste the contents of:
-
-```text
-supabase/schema.sql
-```
-
-and run it.
+`supabase/schema.sql`
 
 This creates:
 
-- `allowed_users`
+- `users`
+- `equipment_permissions`
 - `reservations`
 
-To authorize users, insert their email addresses:
+RLS is enabled. The browser does not access tables directly. The Next.js server uses the service-role key.
+
+---
+
+# 3. Register users and equipment permissions
+
+Use:
+
+`supabase/example-users.sql`
+
+as a template.
+
+Example:
 
 ```sql
-insert into public.allowed_users (email, name)
-values
-  ('user1@kist.re.kr', 'User One'),
-  ('user2@kist.re.kr', 'User Two');
+insert into public.users (email, name)
+values ('hanwool@kist.re.kr', 'Hanwool Seong')
+on conflict (email) do update
+set name = excluded.name,
+    active = true;
+
+insert into public.equipment_permissions (user_id, equipment, allowed)
+select id, 'Picomaster', true
+from public.users
+where email = 'hanwool@kist.re.kr'
+on conflict (user_id, equipment) do update
+set allowed = true;
 ```
 
-You can also add/remove users later using the Supabase Table Editor.
+This means Hanwool can reserve Picomaster.
 
-> The current version checks whether the submitted email is on the allow-list. For stronger identity verification, Supabase Auth / email magic-link login can be added later.
+To allow one user to reserve all three equipment:
+
+```sql
+insert into public.equipment_permissions (user_id, equipment, allowed)
+select u.id, e.equipment, true
+from public.users u
+cross join (
+  values ('Picomaster'), ('Ellionix'), ('Magnetic Annealing')
+) as e(equipment)
+where u.email = 'user@kist.re.kr'
+on conflict (user_id, equipment) do update
+set allowed = true;
+```
+
+To remove permission:
+
+```sql
+update public.equipment_permissions
+set allowed = false
+where user_id = (
+  select id from public.users where email = 'user@kist.re.kr'
+)
+and equipment = 'Ellionix';
+```
 
 ---
 
-# 3. Get Supabase keys
+# 4. Create Resend API key
 
-In the Supabase dashboard, find the project API settings and copy:
+Create a Resend API key.
 
-- Project URL
-- anon/publishable key
-- service-role/secret key
+You need:
 
-The service-role key must **never** be committed to GitHub or exposed in browser code.
-
----
-
-# 4. Configure Resend
-
-Create a Resend account and API key.
-
-For production email, verify a sending domain/subdomain in Resend, for example:
-
-```text
-reservation.example.org
+```env
+RESEND_API_KEY=re_xxxxxxxxx
+RESEND_FROM=Equipment Reservation <reservation@your-domain.com>
 ```
 
-The app sends three types of mail:
-
-### A. New reservation request → administrator
-
-Includes:
-
-- Equipment
-- User
-- Email
-- Supervisor
-- Start / end time
-- Purpose
-- Notes
-- APPROVE button
-- DECLINE button
-
-### B. Approval / decline result → requester
-
-The user receives the reservation result automatically.
-
-### C. 5-minute reminder → requester
-
-Only Approved reservations are eligible.
-
-Example subject:
-
-```text
-Picomaster Reservation Reminder
-```
-
-There is no `[DS Han Lab]` prefix.
+For testing, use the address allowed by your Resend setup.
+For production, verify a sending domain in Resend.
 
 ---
 
 # 5. Environment variables
 
-Copy:
+In local development, copy:
 
-```text
-.env.example
-```
+`.env.example`
 
 to:
 
-```text
-.env.local
-```
+`.env.local`
 
 Fill in:
 
 ```env
 NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=YOUR_PUBLIC_KEY
-SUPABASE_SERVICE_ROLE_KEY=YOUR_SERVICE_ROLE_KEY
+NEXT_PUBLIC_SUPABASE_ANON_KEY=YOUR_SUPABASE_ANON_OR_PUBLISHABLE_KEY
+SUPABASE_SERVICE_ROLE_KEY=YOUR_SUPABASE_SERVICE_ROLE_OR_SECRET_KEY
 
-RESEND_API_KEY=re_xxxxxxxxx
+RESEND_API_KEY=re_xxxxxxxxxxxxxxxxx
 RESEND_FROM=Equipment Reservation <reservation@YOUR_DOMAIN>
-ADMIN_EMAIL=YOUR_ADMIN_EMAIL
+ADMIN_EMAIL=YOUR_EMAIL@kist.re.kr
 
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
-APPROVAL_SECRET=LONG_RANDOM_SECRET_1
-REMINDER_CRON_SECRET=LONG_RANDOM_SECRET_2
+APPROVAL_SECRET=replace-with-a-long-random-secret
+CRON_SECRET=replace-with-another-long-random-secret
 ```
 
-Generate random secrets, for example:
+Generate secrets:
 
 ```bash
 openssl rand -hex 32
+openssl rand -hex 32
 ```
-
-Use a different value for each secret.
 
 ---
 
-# 6. Test locally
+# 6. Run locally
 
-Inside the project directory:
+Install Node.js 20 or newer.
 
 ```bash
 npm install
 npm run dev
 ```
 
-Then open:
+Open:
 
-```text
-http://localhost:3000
-```
-
-The 5-minute production cron should be configured only after deployment.
+`http://localhost:3000`
 
 ---
 
-# 7. Push to GitHub
+# 7. Deploy on Vercel
 
-Create a GitHub repository, for example:
+1. Go to Vercel.
+2. Add New Project.
+3. Import your GitHub repository.
+4. Add all environment variables.
+5. Deploy.
 
-```text
-equipment-reservation
-```
+After deployment, copy the final Vercel URL.
 
-Then:
+Example:
 
-```bash
-git init
-git add .
-git commit -m "Initial equipment reservation app"
-git branch -M main
-git remote add origin https://github.com/YOUR_ID/equipment-reservation.git
-git push -u origin main
-```
+`https://equipment-reservation.vercel.app`
 
-`.env.local` is already ignored by `.gitignore`.
-
----
-
-# 8. Deploy to Vercel
-
-1. Sign in to Vercel.
-2. Create a new project from the GitHub repository.
-3. Add all environment variables listed above.
-4. Deploy.
-5. Vercel will give you an address similar to:
-
-```text
-https://equipment-reservation.vercel.app
-```
-
-6. Change the Vercel environment variable:
+Then set:
 
 ```env
 NEXT_PUBLIC_SITE_URL=https://equipment-reservation.vercel.app
 ```
 
-7. Redeploy.
+Redeploy.
 
-This URL is used to generate the administrator's Approve / Decline links.
-
----
-
-# 9. Configure the 5-minute reminder
-
-The reminder uses **Supabase Cron**, not Vercel Cron.
-
-Why: the reminder checker needs minute-level scheduling. Supabase Cron can run the protected `/api/reminders` endpoint every minute.
-
-First make sure `REMINDER_CRON_SECRET` is already configured in Vercel.
-
-Then open:
-
-```text
-supabase/reminder_cron.sql
-```
-
-and replace:
-
-```text
-https://YOUR-VERCEL-SITE.vercel.app
-```
-
-with your deployed application URL, and:
-
-```text
-YOUR_REMINDER_CRON_SECRET
-```
-
-with the exact same secret stored in Vercel.
-
-The SQL stores both values in **Supabase Vault** and creates a cron job that calls the reminder endpoint every minute.
-
-The endpoint only selects reservations satisfying all of the following:
-
-- `status = approved`
-- `reminder_sent_at IS NULL`
-- start time is approximately 5 minutes away
-
-When the email succeeds, `reminder_sent_at` is permanently recorded. Therefore the same reservation does not receive the reminder twice.
-
-If an email send fails, the claim is released so a later cron execution can retry.
-
-> Because the job runs periodically and email delivery itself is not real-time deterministic, “5 minutes before” should be understood as approximately 5 minutes before rather than guaranteed to the exact second.
+This is required for email APPROVE / DECLINE links.
 
 ---
 
-# 10. Install it like a phone app
+# 8. Test reservation flow
 
-## Android / Chrome
-
-After deployment over HTTPS:
-
-1. Open the reservation site in Chrome.
-2. Use the **Install App** button if Chrome exposes installability.
-3. If the button is unavailable, use Chrome's menu → **Add to Home screen / Install app**.
-4. Launch the new Equipment icon from the home screen.
-
-## iPhone / Safari
-
-1. Open the site in Safari.
-2. Tap the Share button.
-3. Choose **Add to Home Screen**.
-4. Confirm the name.
-5. Launch it from the home screen.
-
-The PWA runs in standalone display mode and includes dedicated 192 px, 512 px, maskable, and Apple-touch icons.
+1. Add your email to `users`.
+2. Add equipment permission in `equipment_permissions`.
+3. Open the Vercel site.
+4. Select an equipment.
+5. Make a reservation request.
+6. Confirm that the calendar shows Pending.
+7. Check admin email.
+8. Click APPROVE.
+9. Confirm that the calendar changes to Approved.
+10. Confirm user result email.
 
 ---
 
-# 11. User workflow
+# 9. Enable 5-minute reminders
+
+After Vercel deployment works, open:
+
+`supabase/reminder-cron.sql`
+
+Replace:
 
 ```text
-Open app
-  ↓
-Choose Picomaster / Ellionix / Magnetic Annealing
-  ↓
-Check calendar
-  ↓
-Tap empty time slot
-  ↓
-Enter Name / Email / Supervisor / Purpose / Notes
-  ↓
-Request Reservation
-  ↓
-Pending appears on calendar
-  ↓
-Administrator receives email
-  ↓
-APPROVE or DECLINE
-  ↓
-User receives result email
-  ↓
-If Approved: reminder email ~5 min before start
+https://YOUR-VERCEL-APP.vercel.app
 ```
 
----
+with your actual Vercel URL.
 
-# 12. Reservation conflict policy
-
-Both Pending and Approved reservations block the selected time.
-
-The overlap rule is:
+Replace:
 
 ```text
-new_start < existing_end
-AND
-new_end > existing_start
+YOUR_CRON_SECRET
 ```
 
-The server checks conflicts once at submission and again immediately before approval.
+with the same value as your Vercel environment variable:
 
-This protects against approving an old email after another reservation has already taken that time.
+```env
+CRON_SECRET
+```
+
+Then run the SQL in Supabase SQL Editor.
+
+The cron job calls:
+
+`/api/reminders`
+
+every minute.
+
+The reminder API finds approved reservations starting in about 5 minutes and sends one email.
+
+Email subjects:
+
+- `Picomaster Reservation Reminder`
+- `Ellionix Reservation Reminder`
+- `Magnetic Annealing Reservation Reminder`
+
+No `[DS Han Lab]` text is used.
 
 ---
 
-# 13. PWA files
+# 10. Install on phone
 
-The app-related files are:
+Android Chrome:
+- Open the site.
+- Tap Install app or Add to Home screen.
 
-```text
-app/manifest.ts
-components/PwaInstall.tsx
-public/sw.js
-public/icon-192.png
-public/icon-512.png
-public/icon-512-maskable.png
-public/apple-touch-icon.png
-```
+iPhone Safari:
+- Open the site.
+- Tap Share.
+- Tap Add to Home Screen.
 
-The service worker deliberately does **not** cache `/api/*` requests, so reservation data is always requested from the server rather than served as stale cached data.
+The installed app name is:
+
+`Equipment Reservation`
 
 ---
 
-# 14. Recommended next upgrade
+# 11. Important security notes
 
-The most useful next security improvement is **email magic-link authentication**. That would prove that the person submitting a booking actually controls an authorized email address, rather than merely knowing one.
+Never put these in GitHub:
+
+```env
+SUPABASE_SERVICE_ROLE_KEY
+RESEND_API_KEY
+APPROVAL_SECRET
+CRON_SECRET
+```
+
+Only put them in:
+
+- `.env.local` on your computer
+- Vercel Environment Variables
+
+The approval email links use a random token.
+Only a hash of the token is stored in the database.
+After approve/decline, the token is removed.
+
+---
+
+# 12. Recommended next upgrade
+
+The current version checks whether the submitted email has permission for the selected equipment.
+
+For stronger security, add Supabase email-login later.
+Then users can only reserve equipment after proving ownership of their email address.
