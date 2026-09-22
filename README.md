@@ -132,3 +132,13 @@ Equipment list:
 For an existing deployment, run `supabase/add-equipment-items.sql` once in the Supabase SQL Editor before testing reservations for the new equipment. Then deploy the updated code to Vercel.
 
 Each new equipment item has its own administrator permission checkbox. Normal users only see equipment for which they have permission.
+
+## Fast admin permission update
+
+The Admin permission checkboxes now use optimistic UI:
+- checkbox changes immediately
+- only the clicked user/equipment permission is saved
+- the entire user list is NOT reloaded after a successful save
+- only the clicked checkbox is reverted if the save fails
+
+This removes the noticeable delay after changing equipment access.

@@ -34,9 +34,46 @@ export default function AdminPage(){
     setMsg("Saved."); await load();
   }
 
-  function togglePerm(user:UserRow,equipment:string,checked:boolean){
-    const permissions = checked ? Array.from(new Set([...user.permissions,equipment])) : user.permissions.filter(p=>p!==equipment);
-    updateUser(user,{permissions});
+  async function togglePerm(user:UserRow,equipment:string,checked:boolean){
+    setErr(""); setMsg("");
+
+    // Update the checkbox immediately. Do not reload the entire user list.
+    setUsers(prev=>prev.map(u=>u.id===user.id
+      ? {...u,permissions:checked
+          ? Array.from(new Set([...u.permissions,equipment]))
+          : u.permissions.filter(p=>p!==equipment)}
+      : u));
+
+    try {
+      const res=await fetch(`/api/admin/users/${user.id}`,{
+        method:"PATCH",
+        headers:{"Content-Type":"application/json",Authorization:`Bearer ${token}`},
+        body:JSON.stringify({permission:{equipment,allowed:checked}})
+      });
+      const out=await res.json().catch(()=>({}));
+
+      if(!res.ok){
+        // Revert only this checkbox if saving fails.
+        setUsers(prev=>prev.map(u=>u.id===user.id
+          ? {...u,permissions:checked
+              ? u.permissions.filter(p=>p!==equipment)
+              : Array.from(new Set([...u.permissions,equipment]))}
+          : u));
+        setErr(out.error||"Permission update failed.");
+        return;
+      }
+
+      // No full reload here: the optimistic local state is already correct.
+      setMsg(`${equipment}: ${checked ? "Access granted" : "Access removed"}`);
+    } catch {
+      // Network failure: revert only this checkbox.
+      setUsers(prev=>prev.map(u=>u.id===user.id
+        ? {...u,permissions:checked
+            ? u.permissions.filter(p=>p!==equipment)
+            : Array.from(new Set([...u.permissions,equipment]))}
+        : u));
+      setErr("Network error while saving permission.");
+    }
   }
 
   return (
