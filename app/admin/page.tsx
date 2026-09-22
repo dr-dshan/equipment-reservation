@@ -75,6 +75,30 @@ export default function AdminPage(){
       setErr("Network error while saving permission.");
     }
   }
+  async function reviewReservation(id:string,action:"approve"|"decline"){
+    setErr(""); setMsg("");
+    // Immediate local feedback.
+    const nextStatus=action==="approve"?"approved":"declined";
+    const previous=reservations.find(r=>r.id===id)?.status;
+    setReservations(prev=>prev.map(r=>r.id===id?{...r,status:nextStatus}:r));
+    try{
+      const res=await fetch("/api/admin/reservations",{
+        method:"PATCH",
+        headers:{"Content-Type":"application/json",Authorization:`Bearer ${token}`},
+        body:JSON.stringify({id,action})
+      });
+      const out=await res.json().catch(()=>({}));
+      if(!res.ok){
+        if(previous) setReservations(prev=>prev.map(r=>r.id===id?{...r,status:previous}:r));
+        setErr(out.error||"Could not update reservation.");
+        return;
+      }
+      setMsg(`Reservation ${out.status}.`);
+    }catch{
+      if(previous) setReservations(prev=>prev.map(r=>r.id===id?{...r,status:previous}:r));
+      setErr("Network error while updating reservation.");
+    }
+  }
 
   return (
     <main className="shell">
@@ -94,8 +118,8 @@ export default function AdminPage(){
       </section>
 
       <section className="card"><h2>Recent Reservations</h2>
-        <table className="table"><thead><tr><th>Equipment</th><th>User</th><th>Time</th><th>Status</th><th>Purpose</th></tr></thead><tbody>
-          {reservations.map(r=><tr key={r.id}><td>{r.equipment}</td><td>{r.name}<br/>{r.email}</td><td>{new Date(r.start_time).toLocaleString()}<br/>– {new Date(r.end_time).toLocaleString()}</td><td>{r.status}</td><td>{r.purpose}</td></tr>)}
+        <table className="table"><thead><tr><th>Equipment</th><th>User</th><th>Time</th><th>Status</th><th>Purpose</th><th>Action</th></tr></thead><tbody>
+          {reservations.map(r=><tr key={r.id}><td>{r.equipment}</td><td>{r.name}<br/>{r.email}</td><td>{new Date(r.start_time).toLocaleString()}<br/>– {new Date(r.end_time).toLocaleString()}</td><td>{r.status}</td><td>{r.purpose}</td><td>{r.status==="pending"?<><button className="btn" onClick={()=>reviewReservation(r.id,"approve")}>Approve</button> <button className="btn red" onClick={()=>reviewReservation(r.id,"decline")}>Decline</button></>:"—"}</td></tr>)}
         </tbody></table>
       </section>
     </main>

@@ -8,10 +8,11 @@ import interactionPlugin, { DateClickArg } from "@fullcalendar/interaction";
 import { getBrowserSupabase } from "@/lib/supabaseClient";
 import { EQUIPMENT, EquipmentName } from "@/lib/equipment";
 import BookingModal from "./BookingModal";
+import EditReservationModal from "./EditReservationModal";
 import Nav from "./Nav";
 
 type Me = { id:string; email:string; name:string; supervisor:string; status:string; isAdmin:boolean; permissions:string[] };
-type Event = { id:string; title:string; start:string; end:string; status:"pending"|"approved" };
+type Event = { id:string; title:string; start:string; end:string; status:"pending"|"approved"; isMine:boolean; purpose?:string; notes?:string };
 
 export default function BookingCalendar(){
   const router = useRouter();
@@ -19,6 +20,7 @@ export default function BookingCalendar(){
   const [equipment,setEquipment] = useState<EquipmentName>("Picomaster");
   const [events,setEvents] = useState<Event[]>([]);
   const [selected,setSelected] = useState<string|null>(null);
+  const [editing,setEditing] = useState<Event|null>(null);
   const [msg,setMsg] = useState("Tap an empty time slot to request a reservation.");
   const [mobile,setMobile] = useState(false);
 
@@ -105,6 +107,11 @@ export default function BookingCalendar(){
               nowIndicator
               selectable
               dateClick={click}
+              eventClick={(arg)=>{
+                const mine=events.find(e=>e.id===arg.event.id);
+                if(mine?.isMine) setEditing(mine);
+                else setMsg("Only the owner can edit or cancel this reservation.");
+              }}
               events={events.map(e=>({ id:e.id, title:e.title, start:e.start, end:e.end, classNames:[e.status==="approved"?"event-approved":"event-pending"] }))}
               eventContent={(arg)=><div><strong>{arg.timeText}</strong><div>{arg.event.title}</div></div>}
             />
@@ -114,6 +121,7 @@ export default function BookingCalendar(){
       </section>
 
       {selected && <BookingModal me={me} equipment={equipment} initialStart={selected} onClose={()=>setSelected(null)} onSubmitted={async()=>{setSelected(null); setMsg("Reservation request submitted. Approval is pending."); await load();}} />}
+      {editing && <EditReservationModal reservation={{...editing,equipment}} onClose={()=>setEditing(null)} onChanged={async(message)=>{setEditing(null);setMsg(message);await load();}} />}
     </>
   );
 }

@@ -26,12 +26,17 @@ export async function GET(req: NextRequest) {
     }
 
     const { data, error } = await supabase.from("reservations")
-      .select("id,name,start_time,end_time,status")
+      .select("id,user_id,name,start_time,end_time,status,purpose,notes")
       .eq("equipment", equipment).in("status", ["pending","approved"]).order("start_time");
     if (error) throw error;
 
     return NextResponse.json(
-      { events:(data||[]).map(r=>({ id:r.id, title:r.name, start:r.start_time, end:r.end_time, status:r.status })) },
+      { events:(data||[]).map(r=>({
+          id:r.id, title:r.name, start:r.start_time, end:r.end_time, status:r.status,
+          isMine:r.user_id===user.id,
+          purpose:r.user_id===user.id ? r.purpose : undefined,
+          notes:r.user_id===user.id ? r.notes : undefined
+        })) },
       { headers:{ "Cache-Control":"private, max-age=10" } }
     );
   } catch(e) {
@@ -99,4 +104,100 @@ async function sendAdminReservationEmail(input:any) {
     throw new Error(`Admin email failed: ${emailError.message}`);
   }
   console.log("Admin reservation notification sent:", emailData?.id);
+}
+
+
+export async function PATCH(req:NextRequest){
+  try{
+    const user=await getAuthUser(req);
+    if(!user) return NextResponse.json({error:"Please log in."},{status:401});
+    const {id,start,end,purpose,notes}=await req.json();
+    if(!id||!start||!end||!purpose) return NextResponse.json({error:"Missing required fields."},{status:400});
+    const newStart=new Date(start), newEnd=new Date(end);
+    if(!(newEnd>newStart)) return NextResponse.json({error:"End time must be later than start time."},{status:400});
+
+    const supabase=getAdminSupabase();
+    const {data:r,error:readError}=await supabase.from("reservations").select("*").eq("id",id).maybeSingle();
+    if(readError) throw readError;
+    if(!r) return NextResponse.json({error:"Reservation not found."},{status:404});
+    if(r.user_id!==user.id) return NextResponse.json({error:"You can only edit your own reservation."},{status:403});
+    if(!["pending","approved"].includes(r.status)) return NextResponse.json({error:`This reservation is ${r.status} and cannot be edited.`},{status:409});
+
+    // The edited slot must not overlap another active request/reservation.
+    const {data:conflicts,error:conflictError}=await supabase.from("reservations").select("id")
+      .eq("equipment",r.equipment).in("status",["pending","approved"]).neq("id",id)
+      .lt("start_time",newEnd.toISOString()).gt("end_time",newStart.toISOString());
+    if(conflictError) throw conflictError;
+    if((conflicts||[]).length) return NextResponse.json({error:"The edited time overlaps with another reservation or pending request."},{status:409});
+
+    const oldStart=new Date(r.start_time), oldEnd=new Date(r.end_time);
+    // No reapproval only when the new interval is wholly contained inside the old approved interval.
+    // This covers later start, earlier end, or both. Any extension before/after the approved interval requires reapproval.
+    const contained = newStart>=oldStart && newEnd<=oldEnd;
+    const needsApproval = r.status==="pending" || !contained;
+
+    let token:string|undefined;
+    const update:any={
+      start_time:newStart.toISOString(),end_time:newEnd.toISOString(),
+      purpose:String(purpose).trim(),notes:String(notes||"").trim()
+    };
+    if(needsApproval){
+      token=newRandomToken();
+      update.status="pending";
+      update.approval_token_hash=hashApprovalToken(token);
+      update.reviewed_at=null;
+    }
+
+    const {error:updateError}=await supabase.from("reservations").update(update).eq("id",id);
+    if(updateError) throw updateError;
+
+    let notificationWarning:string|undefined;
+    if(needsApproval && token){
+      try{
+        const {data:profile}=await supabase.from("profiles").select("*").eq("id",user.id).single();
+        await sendAdminReservationEmail({
+          id, equipment:r.equipment, profile, purpose, notes,
+          start:newStart,end:newEnd,token
+        });
+      }catch(e:any){
+        console.error("Edited reservation saved but admin notification failed:",e);
+        notificationWarning=e?.message||"Admin email notification failed.";
+      }
+    }
+
+    return NextResponse.json({
+      ok:true,
+      status:needsApproval?"pending":"approved",
+      needsApproval,
+      notificationWarning
+    });
+  }catch(e:any){
+    console.error("Reservation edit error:",e);
+    return NextResponse.json({error:e?.message||"Could not edit reservation."},{status:500});
+  }
+}
+
+export async function DELETE(req:NextRequest){
+  try{
+    const user=await getAuthUser(req);
+    if(!user) return NextResponse.json({error:"Please log in."},{status:401});
+    const id=req.nextUrl.searchParams.get("id");
+    if(!id) return NextResponse.json({error:"Reservation ID is required."},{status:400});
+    const supabase=getAdminSupabase();
+    const {data:r,error:readError}=await supabase.from("reservations").select("id,user_id,status").eq("id",id).maybeSingle();
+    if(readError) throw readError;
+    if(!r) return NextResponse.json({error:"Reservation not found."},{status:404});
+    if(r.user_id!==user.id) return NextResponse.json({error:"You can only cancel your own reservation."},{status:403});
+    if(!["pending","approved"].includes(r.status)) return NextResponse.json({error:`This reservation is already ${r.status}.`},{status:409});
+
+    // Cancellation never requires administrator approval; keep the row for history.
+    const {error}=await supabase.from("reservations").update({
+      status:"cancelled",approval_token_hash:null,reviewed_at:new Date().toISOString()
+    }).eq("id",id);
+    if(error) throw error;
+    return NextResponse.json({ok:true,status:"cancelled"});
+  }catch(e:any){
+    console.error("Reservation cancellation error:",e);
+    return NextResponse.json({error:e?.message||"Could not cancel reservation."},{status:500});
+  }
 }

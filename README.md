@@ -142,3 +142,22 @@ The Admin permission checkboxes now use optimistic UI:
 - only the clicked checkbox is reverted if the save fails
 
 This removes the noticeable delay after changing equipment access.
+
+## Reservation approval reliability update
+- Admin → Recent Reservations now has Approve / Decline buttons for pending requests.
+- Approval re-checks time overlap on the server.
+- Email is now a notification convenience, not the only approval path.
+- If the admin notification email fails, the reservation remains pending and visible in Admin.
+- Resend's send result is checked and email errors are logged in Vercel.
+
+## Self-service reservation edit/cancel
+- Users can click their own calendar reservation to edit or cancel it.
+- Cancellation never requires administrator approval and is stored as `cancelled` for history.
+- For an approved reservation, a new interval wholly contained within the previously approved interval remains approved.
+  - later start = no reapproval
+  - earlier end = no reapproval
+  - both = no reapproval
+- Any extension outside the previously approved interval requires administrator approval again and changes status to `pending`.
+- Pending reservations remain pending after edits.
+- Edits are rejected if the new interval overlaps another pending/approved reservation.
+- Other users cannot edit/cancel someone else's reservation.
