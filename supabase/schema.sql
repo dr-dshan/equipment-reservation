@@ -12,7 +12,7 @@ create table if not exists public.profiles (
 create table if not exists public.equipment_permissions (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.profiles(id) on delete cascade,
-  equipment text not null check (equipment in ('Picomaster', 'Ellionix', 'Magnetic Annealing')),
+  equipment text not null check (equipment in ('Picomaster', 'Ellionix', 'Magnetic Annealing', 'AJA Oxide Sputter', 'Magnetotransport system (L6315)', 'Magnetotransport system (T4105)')),
   allowed boolean not null default true,
   created_at timestamptz not null default now(),
   unique(user_id, equipment)
@@ -21,7 +21,7 @@ create table if not exists public.equipment_permissions (
 create table if not exists public.reservations (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.profiles(id) on delete cascade,
-  equipment text not null check (equipment in ('Picomaster', 'Ellionix', 'Magnetic Annealing')),
+  equipment text not null check (equipment in ('Picomaster', 'Ellionix', 'Magnetic Annealing', 'AJA Oxide Sputter', 'Magnetotransport system (L6315)', 'Magnetotransport system (T4105)')),
   name text not null,
   email text not null,
   supervisor text not null,

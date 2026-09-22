@@ -33,19 +33,27 @@ export default function BookingCalendar(){
     if(!res.ok){ router.push("/login"); return; }
     const profile = await res.json();
     setMe(profile);
-    const first = EQUIPMENT.find(e=>profile.permissions.includes(e));
+    const first = profile.isAdmin ? EQUIPMENT[0] : EQUIPMENT.find(e=>profile.permissions.includes(e));
     if(first) setEquipment(first);
   })(); },[router]);
 
   const load = useCallback(async()=>{
-    const res = await fetch(`/api/reservations?equipment=${encodeURIComponent(equipment)}`, { cache:"default" });
+    const { data: sessionData } = await getBrowserSupabase().auth.getSession();
+    const token = sessionData.session?.access_token;
+    if (!token) return;
+    const res = await fetch(`/api/reservations?equipment=${encodeURIComponent(equipment)}`, {
+      cache:"default",
+      headers:{ Authorization:`Bearer ${token}` }
+    });
     const data = await res.json();
     if(res.ok) setEvents(data.events || []);
+    else setEvents([]);
   },[equipment]);
   useEffect(()=>{ load(); },[load]);
 
   const initialView = useMemo(()=> mobile ? "timeGridDay" : "timeGridWeek", [mobile]);
-  const allowed = !!me?.permissions.includes(equipment);
+  const visibleEquipment = me?.isAdmin ? [...EQUIPMENT] : EQUIPMENT.filter(e=>me?.permissions.includes(e));
+  const allowed = !!me?.isAdmin || !!me?.permissions.includes(equipment);
 
   function click(arg: DateClickArg){
     if(!me) return;
@@ -69,9 +77,9 @@ export default function BookingCalendar(){
 
       <section className="card">
         <div className="tabs">
-          {EQUIPMENT.map(e=>(
+          {visibleEquipment.map(e=>(
             <button key={e} className={`tab ${equipment===e?"active":""}`} onClick={()=>setEquipment(e)}>
-              {e}{me.permissions.includes(e) ? "" : " · no access"}
+              {e}
             </button>
           ))}
         </div>
@@ -80,23 +88,29 @@ export default function BookingCalendar(){
           <span className="legend"><span className="dot pending"/> Pending</span>
           <span>{allowed ? "You can reserve this equipment." : "You do not have permission for this equipment."}</span>
         </div>
-        <FullCalendar
-          key={initialView}
-          plugins={[dayGridPlugin,timeGridPlugin,interactionPlugin]}
-          initialView={initialView}
-          headerToolbar={{ left:"prev,next today", center:"title", right: mobile ? "timeGridDay" : "dayGridMonth,timeGridWeek,timeGridDay" }}
-          height="auto"
-          allDaySlot={false}
-          slotMinTime="08:00:00"
-          slotMaxTime="23:00:00"
-          slotDuration="00:30:00"
-          nowIndicator
-          selectable
-          dateClick={click}
-          events={events.map(e=>({ id:e.id, title:e.title, start:e.start, end:e.end, classNames:[e.status==="approved"?"event-approved":"event-pending"] }))}
-          eventContent={(arg)=><div><strong>{arg.timeText}</strong><div>{arg.event.title}</div></div>}
-        />
-        <div className="status">{msg}</div>
+        {visibleEquipment.length === 0 ? (
+          <div className="status">No equipment access has been assigned yet. Please contact the administrator.</div>
+        ) : (
+          <>
+            <FullCalendar
+              key={initialView}
+              plugins={[dayGridPlugin,timeGridPlugin,interactionPlugin]}
+              initialView={initialView}
+              headerToolbar={{ left:"prev,next today", center:"title", right: mobile ? "timeGridDay" : "dayGridMonth,timeGridWeek,timeGridDay" }}
+              height="auto"
+              allDaySlot={false}
+              slotMinTime="08:00:00"
+              slotMaxTime="23:00:00"
+              slotDuration="00:30:00"
+              nowIndicator
+              selectable
+              dateClick={click}
+              events={events.map(e=>({ id:e.id, title:e.title, start:e.start, end:e.end, classNames:[e.status==="approved"?"event-approved":"event-pending"] }))}
+              eventContent={(arg)=><div><strong>{arg.timeText}</strong><div>{arg.event.title}</div></div>}
+            />
+            <div className="status">{msg}</div>
+          </>
+        )}
       </section>
 
       {selected && <BookingModal me={me} equipment={equipment} initialStart={selected} onClose={()=>setSelected(null)} onSubmitted={async()=>{setSelected(null); setMsg("Reservation request submitted. Approval is pending."); await load();}} />}

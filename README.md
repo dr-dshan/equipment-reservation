@@ -101,3 +101,34 @@ iPhone Safari:
 - iPhone/iPad: Safari → Share → Add to Home Screen.
 - Admin notifications require Production values for `RESEND_API_KEY`, `RESEND_FROM`, `ADMIN_EMAIL`, and `NEXT_PUBLIC_SITE_URL`.
 - Redeploy after changing Vercel environment variables.
+
+## Equipment visibility update
+- Normal users see only equipment for which the administrator granted permission.
+- Users cannot query reservation calendars for unauthorized equipment, even by calling the API directly.
+- Administrators can see all equipment.
+- Approved users with no equipment permission see a message asking them to contact the administrator.
+- Calendar entries expose only reserver name/time/status; purpose, notes, supervisor and email are not exposed by the normal calendar API.
+
+## AJA Oxide Sputter update
+
+A fourth equipment item, `AJA Oxide Sputter`, has been added.
+
+For an EXISTING Supabase installation, run this file once in Supabase SQL Editor:
+
+`supabase/add-aja-oxide-sputter.sql`
+
+Then deploy this code update. The Admin page will show an additional AJA Oxide Sputter permission checkbox. Users only see it when the administrator grants that permission.
+
+## Six-equipment update
+
+Equipment list:
+- Picomaster
+- Ellionix
+- Magnetic Annealing
+- AJA Oxide Sputter
+- Magnetotransport system (L6315)
+- Magnetotransport system (T4105)
+
+For an existing deployment, run `supabase/add-equipment-items.sql` once in the Supabase SQL Editor before testing reservations for the new equipment. Then deploy the updated code to Vercel.
+
+Each new equipment item has its own administrator permission checkbox. Normal users only see equipment for which they have permission.

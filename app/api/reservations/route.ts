@@ -5,14 +5,34 @@ import { escapeHtml, formatSeoulRange, getAdminSupabase, getAuthUser, hashApprov
 
 export async function GET(req: NextRequest) {
   try {
+    const user = await getAuthUser(req);
+    if (!user) return NextResponse.json({ error:"Please log in." }, { status:401 });
+
     const equipment = req.nextUrl.searchParams.get("equipment");
     if (!isEquipment(equipment)) return NextResponse.json({ error:"Invalid equipment." }, { status:400 });
+
     const supabase = getAdminSupabase();
-    const { data, error } = await supabase.from("reservations").select("id,name,start_time,end_time,status").eq("equipment", equipment).in("status", ["pending","approved"]).order("start_time");
+    const adminEmail = process.env.ADMIN_EMAIL?.trim().toLowerCase();
+    const isAdmin = user.email?.toLowerCase() === adminEmail;
+
+    if (!isAdmin) {
+      const { data: profile } = await supabase.from("profiles").select("status").eq("id", user.id).maybeSingle();
+      if (!profile || profile.status !== "approved")
+        return NextResponse.json({ error:"Your account is not approved yet." }, { status:403 });
+
+      const { data: perm } = await supabase.from("equipment_permissions")
+        .select("allowed").eq("user_id", user.id).eq("equipment", equipment).eq("allowed", true).maybeSingle();
+      if (!perm) return NextResponse.json({ error:"You do not have permission to view this equipment." }, { status:403 });
+    }
+
+    const { data, error } = await supabase.from("reservations")
+      .select("id,name,start_time,end_time,status")
+      .eq("equipment", equipment).in("status", ["pending","approved"]).order("start_time");
     if (error) throw error;
+
     return NextResponse.json(
       { events:(data||[]).map(r=>({ id:r.id, title:r.name, start:r.start_time, end:r.end_time, status:r.status })) },
-      { headers:{ "Cache-Control":"public, s-maxage=15, stale-while-revalidate=60" } }
+      { headers:{ "Cache-Control":"private, max-age=10" } }
     );
   } catch(e) {
     console.error(e); return NextResponse.json({ error:"Could not load reservations." }, { status:500 });
