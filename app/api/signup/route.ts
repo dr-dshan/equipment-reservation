@@ -38,7 +38,7 @@ async function notifyAdmin(name:string, email:string, supervisor:string) {
   const key = process.env.RESEND_API_KEY, from = process.env.RESEND_FROM, to = process.env.ADMIN_EMAIL, site = process.env.NEXT_PUBLIC_SITE_URL;
   if (!key || !from || !to || !site) return;
   const resend = new Resend(key);
-  await resend.emails.send({
+  const { data, error } = await resend.emails.send({
     from, to, subject: `[Equipment Reservation] New user registration — ${name}`,
     html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;color:#111827">
       <div style="font-size:12px;letter-spacing:.14em;color:#6b7280">EQUIPMENT RESERVATION</div>
@@ -49,4 +49,9 @@ async function notifyAdmin(name:string, email:string, supervisor:string) {
       <p><a href="${site.replace(/\/$/,"")}/admin" style="display:inline-block;background:#111827;color:#fff;text-decoration:none;padding:12px 18px;border-radius:8px;font-weight:700">OPEN ADMIN PAGE</a></p>
     </div>`
   });
+  if (error) {
+    console.error("Admin signup notification failed:", error);
+    throw new Error(`Admin signup email failed: ${error.message}`);
+  }
+  console.log("Admin signup notification sent:", data?.id);
 }

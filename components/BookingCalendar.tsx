@@ -38,7 +38,7 @@ export default function BookingCalendar(){
   })(); },[router]);
 
   const load = useCallback(async()=>{
-    const res = await fetch(`/api/reservations?equipment=${encodeURIComponent(equipment)}`, { cache:"no-store" });
+    const res = await fetch(`/api/reservations?equipment=${encodeURIComponent(equipment)}`, { cache:"default" });
     const data = await res.json();
     if(res.ok) setEvents(data.events || []);
   },[equipment]);
@@ -87,8 +87,8 @@ export default function BookingCalendar(){
           headerToolbar={{ left:"prev,next today", center:"title", right: mobile ? "timeGridDay" : "dayGridMonth,timeGridWeek,timeGridDay" }}
           height="auto"
           allDaySlot={false}
-          slotMinTime="00:00:00"
-          slotMaxTime="24:00:00"
+          slotMinTime="08:00:00"
+          slotMaxTime="23:00:00"
           slotDuration="00:30:00"
           nowIndicator
           selectable

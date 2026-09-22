@@ -10,7 +10,10 @@ export async function GET(req: NextRequest) {
     const supabase = getAdminSupabase();
     const { data, error } = await supabase.from("reservations").select("id,name,start_time,end_time,status").eq("equipment", equipment).in("status", ["pending","approved"]).order("start_time");
     if (error) throw error;
-    return NextResponse.json({ events:(data||[]).map(r=>({ id:r.id, title:r.name, start:r.start_time, end:r.end_time, status:r.status })) });
+    return NextResponse.json(
+      { events:(data||[]).map(r=>({ id:r.id, title:r.name, start:r.start_time, end:r.end_time, status:r.status })) },
+      { headers:{ "Cache-Control":"public, s-maxage=15, stale-while-revalidate=60" } }
+    );
   } catch(e) {
     console.error(e); return NextResponse.json({ error:"Could not load reservations." }, { status:500 });
   }
@@ -57,7 +60,7 @@ async function sendAdminReservationEmail(input:any) {
   const approve = `${site}/api/approval/approve?token=${encodeURIComponent(input.token)}`;
   const decline = `${site}/api/approval/decline?token=${encodeURIComponent(input.token)}`;
   const resend = new Resend(key);
-  await resend.emails.send({
+  const { data: emailData, error: emailError } = await resend.emails.send({
     from, to, subject:`[Equipment Reservation] ${input.equipment} — ${input.profile.name}`,
     html:`<div style="font-family:Arial,sans-serif;max-width:620px;margin:auto;color:#111827">
       <div style="font-size:12px;letter-spacing:.14em;color:#6b7280">EQUIPMENT RESERVATION</div>
@@ -71,4 +74,9 @@ async function sendAdminReservationEmail(input:any) {
       <p style="font-size:12px;color:#9ca3af">Reservation ID: ${escapeHtml(input.id)}</p>
     </div>`
   });
+  if (emailError) {
+    console.error("Admin reservation notification failed:", emailError);
+    throw new Error(`Admin email failed: ${emailError.message}`);
+  }
+  console.log("Admin reservation notification sent:", emailData?.id);
 }

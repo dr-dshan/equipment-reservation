@@ -93,6 +93,11 @@ iPhone Safari:
 - Share → Add to Home Screen
 
 
-## Install button
-
-The top navigation includes an `Install App` button. On supported Chromium browsers it opens the native install prompt. On iPhone/iPad it shows Safari → Share → Add to Home Screen instructions.
+## Optimized PWA update
+- Faster repeat loads via short calendar edge caching and static asset caching.
+- `/api/*` is never service-worker cached.
+- Admin signup/reservation Resend failures are explicitly logged in Vercel.
+- Windows/Android: use the `Install app` button when shown.
+- iPhone/iPad: Safari → Share → Add to Home Screen.
+- Admin notifications require Production values for `RESEND_API_KEY`, `RESEND_FROM`, `ADMIN_EMAIL`, and `NEXT_PUBLIC_SITE_URL`.
+- Redeploy after changing Vercel environment variables.

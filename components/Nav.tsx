@@ -14,9 +14,9 @@ export default function Nav({ isAdmin=false }: { isAdmin?: boolean }) {
     <div className="nav">
       <Link className="pill dark" href="/">Equipment Reservation</Link>
       <div className="nav-links">
+        <InstallButton />
         <Link href="/">Calendar</Link>
         {isAdmin && <Link href="/admin">Admin</Link>}
-        <InstallButton />
         <button onClick={logout}>Log out</button>
       </div>
     </div>

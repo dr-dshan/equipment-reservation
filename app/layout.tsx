@@ -6,6 +6,7 @@ export const metadata: Metadata = {
   title: "Equipment Reservation",
   description: "Shared equipment reservation system.",
   manifest: "/manifest.json",
+  icons: { icon: "/icon-192.png", apple: "/icon-192.png" },
   appleWebApp: { capable: true, title: "Equipment Reservation", statusBarStyle: "default" }
 };
 
