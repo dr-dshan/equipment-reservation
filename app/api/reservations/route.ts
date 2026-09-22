@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
           purpose:r.user_id===user.id ? r.purpose : undefined,
           notes:r.user_id===user.id ? r.notes : undefined
         })) },
-      { headers:{ "Cache-Control":"private, max-age=10" } }
+      { headers:{ "Cache-Control":"no-store, no-cache, must-revalidate, max-age=0" } }
     );
   } catch(e) {
     console.error(e); return NextResponse.json({ error:"Could not load reservations." }, { status:500 });

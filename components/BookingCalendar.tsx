@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
@@ -23,6 +23,8 @@ export default function BookingCalendar(){
   const [editing,setEditing] = useState<Event|null>(null);
   const [msg,setMsg] = useState("Tap an empty time slot to request a reservation.");
   const [mobile,setMobile] = useState(false);
+  const calendarRef = useRef<FullCalendar|null>(null);
+  const restoredCalendar = useRef(false);
 
   useEffect(()=>{ const c=()=>setMobile(window.matchMedia("(max-width:760px)").matches); c(); window.addEventListener("resize",c); return()=>window.removeEventListener("resize",c); },[]);
 
@@ -35,16 +37,22 @@ export default function BookingCalendar(){
     if(!res.ok){ router.push("/login"); return; }
     const profile = await res.json();
     setMe(profile);
-    const first = profile.isAdmin ? EQUIPMENT[0] : EQUIPMENT.find(e=>profile.permissions.includes(e));
+    const available = profile.isAdmin ? [...EQUIPMENT] : EQUIPMENT.filter(e=>profile.permissions.includes(e));
+    const savedEquipment = window.localStorage.getItem("aedlab:lastEquipment");
+    const first = available.includes(savedEquipment as EquipmentName) ? savedEquipment as EquipmentName : available[0];
     if(first) setEquipment(first);
   })(); },[router]);
+
+  useEffect(()=>{
+    if(me && equipment) window.localStorage.setItem("aedlab:lastEquipment",equipment);
+  },[me,equipment]);
 
   const load = useCallback(async()=>{
     const { data: sessionData } = await getBrowserSupabase().auth.getSession();
     const token = sessionData.session?.access_token;
     if (!token) return;
-    const res = await fetch(`/api/reservations?equipment=${encodeURIComponent(equipment)}`, {
-      cache:"default",
+    const res = await fetch(`/api/reservations?equipment=${encodeURIComponent(equipment)}&t=${Date.now()}`, {
+      cache:"no-store",
       headers:{ Authorization:`Bearer ${token}` }
     });
     const data = await res.json();
@@ -53,7 +61,19 @@ export default function BookingCalendar(){
   },[equipment]);
   useEffect(()=>{ load(); },[load]);
 
-  const initialView = useMemo(()=> mobile ? "timeGridDay" : "timeGridWeek", [mobile]);
+  useEffect(()=>{
+    const timer=window.setInterval(()=>{ if(document.visibilityState==="visible") load(); },8000);
+    const refresh=()=>load();
+    const visible=()=>{ if(document.visibilityState==="visible") load(); };
+    window.addEventListener("focus",refresh);
+    document.addEventListener("visibilitychange",visible);
+    return()=>{ window.clearInterval(timer); window.removeEventListener("focus",refresh); document.removeEventListener("visibilitychange",visible); };
+  },[load]);
+
+  const initialView = useMemo(()=>{
+    if(typeof window==="undefined") return mobile ? "timeGridDay" : "timeGridWeek";
+    return window.localStorage.getItem("aedlab:lastCalendarView") || (mobile ? "timeGridDay" : "timeGridWeek");
+  },[mobile]);
   const visibleEquipment = me?.isAdmin ? [...EQUIPMENT] : EQUIPMENT.filter(e=>me?.permissions.includes(e));
   const allowed = !!me?.isAdmin || !!me?.permissions.includes(equipment);
 
@@ -95,9 +115,16 @@ export default function BookingCalendar(){
         ) : (
           <>
             <FullCalendar
-              key={initialView}
+              ref={calendarRef}
+              key={`${initialView}-${equipment}`}
+              initialDate={typeof window!=="undefined" ? (window.localStorage.getItem("aedlab:lastCalendarDate") || undefined) : undefined}
               plugins={[dayGridPlugin,timeGridPlugin,interactionPlugin]}
               initialView={initialView}
+              datesSet={(arg)=>{
+                window.localStorage.setItem("aedlab:lastCalendarView",arg.view.type);
+                const api=arg.view.calendar;
+                window.localStorage.setItem("aedlab:lastCalendarDate",api.getDate().toISOString());
+              }}
               headerToolbar={{ left:"prev,next today", center:"title", right: mobile ? "timeGridDay" : "dayGridMonth,timeGridWeek,timeGridDay" }}
               height="auto"
               allDaySlot={false}

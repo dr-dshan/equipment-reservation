@@ -161,3 +161,12 @@ This removes the noticeable delay after changing equipment access.
 - Pending reservations remain pending after edits.
 - Edits are rejected if the new interval overlaps another pending/approved reservation.
 - Other users cannot edit/cancel someone else's reservation.
+
+## Fast calendar refresh and state persistence
+- Reservation calendar GET responses are no longer cached for 10 seconds.
+- Calendar requests use `cache: no-store` and a cache-busting query value.
+- After create/edit/cancel, the calendar reloads immediately from fresh server state.
+- While the page is open, visible calendars refresh every 8 seconds so another user's changes appear without F5.
+- Returning to the tab/window triggers an immediate refresh.
+- F5 preserves the last selected equipment, calendar view (month/week/day), and current calendar date using localStorage.
+- If access to the saved equipment was removed, the app falls back to the first currently permitted equipment.
