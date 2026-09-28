@@ -196,3 +196,6 @@ This removes the noticeable delay after changing equipment access.
 - Desktop opens on the current Week view.
 - Previous calendar date and Month/Week/Day view are no longer restored after a fresh page load or app launch.
 - Users can still switch Month/Week/Day normally during the current session.
+- Desktop opens on the current Week view.
+- Previous calendar date and Month/Week/Day view are no longer restored after a fresh page load or app launch.
+- Users can still switch Month/Week/Day normally during the current session.
