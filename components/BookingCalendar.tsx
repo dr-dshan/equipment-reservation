@@ -1,11 +1,11 @@
 "use client";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin, { DateClickArg } from "@fullcalendar/interaction";
-import { getBrowserSupabase } from "@/lib/supabaseClient";
+import { getBrowserSupabase, getValidSession } from "@/lib/supabaseClient";
 import { EQUIPMENT, EquipmentName } from "@/lib/equipment";
 import BookingModal from "./BookingModal";
 import EditReservationModal from "./EditReservationModal";
@@ -23,16 +23,13 @@ export default function BookingCalendar(){
   const [editing,setEditing] = useState<Event|null>(null);
   const [msg,setMsg] = useState("Tap an empty time slot to request a reservation.");
   const [mobile,setMobile] = useState(false);
-  const calendarRef = useRef<FullCalendar|null>(null);
-  const restoredCalendar = useRef(false);
 
   useEffect(()=>{ const c=()=>setMobile(window.matchMedia("(max-width:760px)").matches); c(); window.addEventListener("resize",c); return()=>window.removeEventListener("resize",c); },[]);
 
   useEffect(()=>{ (async()=>{
-    const supabase = getBrowserSupabase();
-    const { data } = await supabase.auth.getSession();
-    const token = data.session?.access_token;
-    if(!token){ router.push("/login"); return; }
+    const session = await getValidSession();
+    const token = session?.access_token;
+    if(!token){ router.replace("/login"); return; }
     const res = await fetch("/api/me", { headers:{ Authorization:`Bearer ${token}` }});
     if(!res.ok){ router.push("/login"); return; }
     const profile = await res.json();
@@ -47,9 +44,17 @@ export default function BookingCalendar(){
     if(me && equipment) window.localStorage.setItem("aedlab:lastEquipment",equipment);
   },[me,equipment]);
 
+  useEffect(()=>{
+    const supabase=getBrowserSupabase();
+    const {data:{subscription}}=supabase.auth.onAuthStateChange((event,session)=>{
+      if(event==="SIGNED_OUT" && !session) router.replace("/login");
+    });
+    return()=>subscription.unsubscribe();
+  },[router]);
+
   const load = useCallback(async()=>{
-    const { data: sessionData } = await getBrowserSupabase().auth.getSession();
-    const token = sessionData.session?.access_token;
+    const session = await getValidSession();
+    const token = session?.access_token;
     if (!token) return;
     const res = await fetch(`/api/reservations?equipment=${encodeURIComponent(equipment)}&t=${Date.now()}`, {
       cache:"no-store",
@@ -70,10 +75,7 @@ export default function BookingCalendar(){
     return()=>{ window.clearInterval(timer); window.removeEventListener("focus",refresh); document.removeEventListener("visibilitychange",visible); };
   },[load]);
 
-  const initialView = useMemo(()=>{
-    if(typeof window==="undefined") return mobile ? "timeGridDay" : "timeGridWeek";
-    return window.localStorage.getItem("aedlab:lastCalendarView") || (mobile ? "timeGridDay" : "timeGridWeek");
-  },[mobile]);
+  const initialView = useMemo(()=> mobile ? "timeGridDay" : "timeGridWeek", [mobile]);
   const visibleEquipment = me?.isAdmin ? [...EQUIPMENT] : EQUIPMENT.filter(e=>me?.permissions.includes(e));
   const allowed = !!me?.isAdmin || !!me?.permissions.includes(equipment);
 
@@ -115,16 +117,9 @@ export default function BookingCalendar(){
         ) : (
           <>
             <FullCalendar
-              ref={calendarRef}
               key={`${initialView}-${equipment}`}
-              initialDate={typeof window!=="undefined" ? (window.localStorage.getItem("aedlab:lastCalendarDate") || undefined) : undefined}
               plugins={[dayGridPlugin,timeGridPlugin,interactionPlugin]}
               initialView={initialView}
-              datesSet={(arg)=>{
-                window.localStorage.setItem("aedlab:lastCalendarView",arg.view.type);
-                const api=arg.view.calendar;
-                window.localStorage.setItem("aedlab:lastCalendarDate",api.getDate().toISOString());
-              }}
               headerToolbar={{ left:"prev,next today", center:"title", right: mobile ? "timeGridDay" : "dayGridMonth,timeGridWeek,timeGridDay" }}
               height="auto"
               allDaySlot={false}
