@@ -5,7 +5,7 @@ import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin, { DateClickArg } from "@fullcalendar/interaction";
-import { getBrowserSupabase } from "@/lib/supabaseClient";
+import { getBrowserSupabase, getValidSession } from "@/lib/supabaseClient";
 import { EQUIPMENT, EquipmentName } from "@/lib/equipment";
 import BookingModal from "./BookingModal";
 import EditReservationModal from "./EditReservationModal";
@@ -29,9 +29,8 @@ export default function BookingCalendar(){
   useEffect(()=>{ const c=()=>setMobile(window.matchMedia("(max-width:760px)").matches); c(); window.addEventListener("resize",c); return()=>window.removeEventListener("resize",c); },[]);
 
   useEffect(()=>{ (async()=>{
-    const supabase = getBrowserSupabase();
-    const { data } = await supabase.auth.getSession();
-    const token = data.session?.access_token;
+    const session = await getValidSession();
+    const token = session?.access_token;
     if(!token){ router.push("/login"); return; }
     const res = await fetch("/api/me", { headers:{ Authorization:`Bearer ${token}` }});
     if(!res.ok){ router.push("/login"); return; }
@@ -48,8 +47,8 @@ export default function BookingCalendar(){
   },[me,equipment]);
 
   const load = useCallback(async()=>{
-    const { data: sessionData } = await getBrowserSupabase().auth.getSession();
-    const token = sessionData.session?.access_token;
+    const session = await getValidSession();
+    const token = session?.access_token;
     if (!token) return;
     const res = await fetch(`/api/reservations?equipment=${encodeURIComponent(equipment)}&t=${Date.now()}`, {
       cache:"no-store",

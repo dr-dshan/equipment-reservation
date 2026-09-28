@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getBrowserSupabase } from "@/lib/supabaseClient";
+import { getBrowserSupabase, markSessionStarted } from "@/lib/supabaseClient";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -14,6 +14,7 @@ export default function LoginPage() {
     e.preventDefault(); setErr("");
     const { error } = await getBrowserSupabase().auth.signInWithPassword({ email, password });
     if(error){ setErr(error.message); return; }
+    markSessionStarted();
     router.push("/");
   }
 

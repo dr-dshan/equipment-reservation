@@ -170,3 +170,14 @@ This removes the noticeable delay after changing equipment access.
 - Returning to the tab/window triggers an immediate refresh.
 - F5 preserves the last selected equipment, calendar view (month/week/day), and current calendar date using localStorage.
 - If access to the saved equipment was removed, the app falls back to the first currently permitted equipment.
+
+## Seven-day login + install update
+- Supabase browser auth now explicitly uses persistent localStorage sessions and automatic token refresh.
+- A successful login starts a 7-day application session window.
+- Closing/reopening the browser or installed PWA and normal F5 reloads do not require login during that window.
+- After 7 days the app signs the user out and requires login again.
+- Explicit Log out still signs out immediately.
+- Existing logged-in users receive a fresh 7-day window on first use of this build.
+- Install App is always visible in a normal browser when the app is not already running standalone.
+- Edge/Chrome opens the native install prompt when available; otherwise the button shows browser-specific install instructions.
+- iPhone/iPad shows Safari → Share → Add to Home Screen instructions.

@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getBrowserSupabase } from "@/lib/supabaseClient";
+import { getBrowserSupabase, getValidSession } from "@/lib/supabaseClient";
 import { EQUIPMENT } from "@/lib/equipment";
 import Nav from "@/components/Nav";
 
@@ -24,7 +24,7 @@ export default function AdminPage(){
     const rj=await r.json(); setReservations(rj.reservations||[]);
   }
 
-  useEffect(()=>{(async()=>{const {data}=await getBrowserSupabase().auth.getSession(); const t=data.session?.access_token; if(!t){router.push("/login"); return;} setToken(t); await load(t);})();},[]);
+  useEffect(()=>{(async()=>{const session=await getValidSession(); const t=session?.access_token; if(!t){router.push("/login"); return;} setToken(t); await load(t);})();},[]);
 
   async function updateUser(user:UserRow, patch:any){
     setErr(""); setMsg("");
