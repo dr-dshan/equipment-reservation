@@ -1,13 +1,14 @@
 "use client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { getBrowserSupabase } from "@/lib/supabaseClient";
+import { clearAppSessionMarker, getBrowserSupabase } from "@/lib/supabaseClient";
 import InstallButton from "./InstallButton";
 
 export default function Nav({ isAdmin=false }: { isAdmin?: boolean }) {
   const router = useRouter();
   async function logout() {
     await getBrowserSupabase().auth.signOut();
+    clearAppSessionMarker();
     router.push("/login");
   }
   return (

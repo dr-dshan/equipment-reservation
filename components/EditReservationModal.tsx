@@ -1,6 +1,6 @@
 "use client";
 import { FormEvent, useState } from "react";
-import { getBrowserSupabase } from "@/lib/supabaseClient";
+import { getBrowserSupabase, getValidSession } from "@/lib/supabaseClient";
 
 type Reservation={id:string;equipment:string;start:string;end:string;status:string;purpose?:string;notes?:string};
 
@@ -18,7 +18,7 @@ export default function EditReservationModal({reservation,onClose,onChanged}:{
   const [err,setErr]=useState(""); const [busy,setBusy]=useState(false);
   const field=(k:string,v:string)=>setForm(p=>({...p,[k]:v}));
 
-  async function auth(){const {data}=await getBrowserSupabase().auth.getSession();return data.session?.access_token}
+  async function auth(){const session=await getValidSession();return session?.access_token}
   async function save(e:FormEvent){
     e.preventDefault();setErr("");setBusy(true);
     const start=new Date(`${form.date}T${form.startTime}:00`),end=new Date(`${form.date}T${form.endTime}:00`);
