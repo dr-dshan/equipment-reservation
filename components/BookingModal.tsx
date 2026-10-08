@@ -1,6 +1,6 @@
 "use client";
 import { FormEvent, useMemo, useState } from "react";
-import { getBrowserSupabase } from "@/lib/supabaseClient";
+import { getBrowserSupabase, getValidSession } from "@/lib/supabaseClient";
 
 export default function BookingModal({ me, equipment, initialStart, onClose, onSubmitted }:{
   me:{name:string; email:string; supervisor:string};
@@ -17,8 +17,8 @@ export default function BookingModal({ me, equipment, initialStart, onClose, onS
     const start = new Date(`${form.date}T${form.startTime}:00`);
     const end = new Date(`${form.date}T${form.endTime}:00`);
     if(!(end>start)){ setErr("End time must be later than start time."); setSub(false); return; }
-    const { data } = await getBrowserSupabase().auth.getSession();
-    const token = data.session?.access_token;
+    const session = await getValidSession();
+    const token = session?.access_token;
     const res = await fetch("/api/reservations", {
       method:"POST",
       headers:{ "Content-Type":"application/json", Authorization:`Bearer ${token}` },
