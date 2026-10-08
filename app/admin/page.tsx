@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getBrowserSupabase } from "@/lib/supabaseClient";
+import { getBrowserSupabase, getValidSession } from "@/lib/supabaseClient";
 import { EQUIPMENT } from "@/lib/equipment";
 import Nav from "@/components/Nav";
 
@@ -24,7 +24,7 @@ export default function AdminPage(){
     const rj=await r.json(); setReservations(rj.reservations||[]);
   }
 
-  useEffect(()=>{(async()=>{const {data}=await getBrowserSupabase().auth.getSession(); const t=data.session?.access_token; if(!t){router.push("/login"); return;} setToken(t); await load(t);})();},[]);
+  useEffect(()=>{(async()=>{const session=await getValidSession(); const t=session?.access_token; if(!t){router.replace("/login"); return;} setToken(t); await load(t);})();},[]);
 
   async function updateUser(user:UserRow, patch:any){
     setErr(""); setMsg("");
@@ -99,6 +99,18 @@ export default function AdminPage(){
       setErr("Network error while updating reservation.");
     }
   }
+  async function resetPassword(user:UserRow){
+    setErr("");setMsg("");const res=await fetch(`/api/admin/users/${user.id}`,{method:"POST",headers:{Authorization:`Bearer ${token}`}});
+    const out=await res.json().catch(()=>({}));if(!res.ok){setErr(out.error||"Could not send reset email.");return;}
+    setMsg(`Password reset email sent to ${user.email}.`);
+  }
+  async function deleteUser(user:UserRow){
+    if(!window.confirm(`Permanently delete ${user.name} (${user.email})? This cannot be undone.`))return;
+    setErr("");setMsg("");const res=await fetch(`/api/admin/users/${user.id}`,{method:"DELETE",headers:{Authorization:`Bearer ${token}`}});
+    const out=await res.json().catch(()=>({}));if(!res.ok){setErr(out.error||"Could not delete user.");return;}
+    setUsers(prev=>prev.filter(u=>u.id!==user.id));setMsg("User account deleted. They may sign up again.");
+  }
+
 
   return (
     <main className="shell">
@@ -106,14 +118,14 @@ export default function AdminPage(){
       {err && <section className="card error">{err}</section>}{msg && <section className="card success">{msg}</section>}
       <section className="card"><h2>Pending Users</h2>
         <table className="table"><thead><tr><th>Name</th><th>Email</th><th>Supervisor</th><th>Action</th></tr></thead><tbody>
-          {users.filter(u=>u.status==="pending").map(u=><tr key={u.id}><td>{u.name}</td><td>{u.email}</td><td>{u.supervisor}</td><td><button className="btn primary" onClick={()=>updateUser(u,{status:"approved"})}>Approve</button> <button className="btn red" onClick={()=>updateUser(u,{status:"rejected"})}>Reject</button></td></tr>)}
+          {users.filter(u=>u.status==="pending").map(u=><tr key={u.id}><td>{u.name}</td><td>{u.email}</td><td>{u.supervisor}</td><td><button className="btn primary" onClick={()=>updateUser(u,{status:"approved"})}>Approve</button> <button className="btn red" onClick={()=>updateUser(u,{status:"rejected"})}>Reject</button> <button className="btn" onClick={()=>resetPassword(u)}>Reset Password</button> <button className="btn red" onClick={()=>deleteUser(u)}>Delete User</button></td></tr>)}
           {users.filter(u=>u.status==="pending").length===0 && <tr><td colSpan={4}>No pending users.</td></tr>}
         </tbody></table>
       </section>
 
       <section className="card"><h2>User Permissions</h2>
         <table className="table"><thead><tr><th>User</th><th>Status</th><th>Permissions</th><th>Status Change</th></tr></thead><tbody>
-          {users.map(u=><tr key={u.id}><td><b>{u.name}</b><br/>{u.email}<br/>Supervisor: {u.supervisor}</td><td>{u.status}</td><td><div className="checks">{EQUIPMENT.map(e=><label className="check" key={e}><input type="checkbox" checked={u.permissions.includes(e)} onChange={ev=>togglePerm(u,e,ev.target.checked)}/>{e}</label>)}</div></td><td><button className="btn" onClick={()=>updateUser(u,{status:"approved"})}>Approve</button> <button className="btn red" onClick={()=>updateUser(u,{status:"rejected"})}>Reject</button></td></tr>)}
+          {users.map(u=><tr key={u.id}><td><b>{u.name}</b><br/>{u.email}<br/>Supervisor: {u.supervisor}</td><td>{u.status}</td><td><div className="checks">{EQUIPMENT.map(e=><label className="check" key={e}><input type="checkbox" checked={u.permissions.includes(e)} onChange={ev=>togglePerm(u,e,ev.target.checked)}/>{e}</label>)}</div></td><td><button className="btn" onClick={()=>updateUser(u,{status:"approved"})}>Approve</button> <button className="btn red" onClick={()=>updateUser(u,{status:"rejected"})}>Reject</button> <button className="btn" onClick={()=>resetPassword(u)}>Reset Password</button> <button className="btn red" onClick={()=>deleteUser(u)}>Delete User</button></td></tr>)}
         </tbody></table>
       </section>
 
