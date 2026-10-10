@@ -33,7 +33,7 @@ export default function BookingModal({ me, equipment, initialStart, onClose, onS
     <div className="modal-backdrop" onMouseDown={onClose}>
       <div className="modal" onMouseDown={e=>e.stopPropagation()}>
         <div className="modal-head"><div><p className="eyebrow">RESERVATION REQUEST</p><h2>{equipment}</h2></div><button className="close" onClick={onClose}>×</button></div>
-        <p className="subtitle">User: {me.name} / Supervisor: {me.supervisor}</p>
+        <p className="subtitle">User: {me.name} / Supervisor: {me.supervisor}. If there is no conflict or maintenance block, this request is approved automatically in about 1 minute.</p>
         <form onSubmit={submit} className="grid">
           <div className="field"><label>Date</label><input type="date" required value={form.date} onChange={e=>setField("date",e.target.value)}/></div>
           <div className="field"><label>Start time</label><input type="time" required value={form.startTime} onChange={e=>setField("startTime",e.target.value)}/></div>

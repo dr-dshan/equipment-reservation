@@ -61,3 +61,27 @@ export function formatSeoulRange(start: string | Date, end: string | Date) {
   });
   return { start: full.format(new Date(start)), end: full.format(new Date(end)) };
 }
+
+export function cronAuthorized(req: Request) {
+  const configured = process.env.CRON_SECRET;
+  if (!configured) return false;
+  const authorization = req.headers.get("authorization");
+  const headerSecret = req.headers.get("x-cron-secret");
+  const urlSecret = new URL(req.url).searchParams.get("secret");
+  return authorization === `Bearer ${configured}` || headerSecret === configured || urlSecret === configured;
+}
+
+export async function sendReservationResultEmail(r:any,status:"approved"|"declined",reason?:string){
+  const key=process.env.RESEND_API_KEY, from=process.env.RESEND_FROM;
+  if(!key||!from||!r.email) return false;
+  const { Resend } = await import("resend");
+  const range=formatSeoulRange(r.start_time,r.end_time);
+  const label=status==="approved"?"Approved":"Declined";
+  const detail=reason?`<p><b>Reason:</b> ${escapeHtml(reason)}</p>`:"";
+  const {error}=await new Resend(key).emails.send({
+    from,to:r.email,subject:`[Equipment Reservation] ${label} — ${r.equipment}`,
+    html:`<div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;color:#111827"><div style="font-size:12px;letter-spacing:.14em;color:#6b7280">EQUIPMENT RESERVATION</div><h1 style="font-family:Georgia,serif;font-weight:400">Reservation ${escapeHtml(status)}</h1><p>Hello ${escapeHtml(r.name)},</p><p>Your reservation for <b>${escapeHtml(r.equipment)}</b> has been <b>${escapeHtml(status)}</b>.</p><p>${escapeHtml(range.start)} – ${escapeHtml(range.end)}</p>${detail}</div>`
+  });
+  if(error){console.error("Reservation result email failed:",error);return false}
+  return true;
+}

@@ -29,7 +29,7 @@ export default function EditReservationModal({reservation,onClose,onChanged}:{
     const out=await res.json();setBusy(false);
     if(!res.ok){setErr(out.error||"Could not update reservation.");return}
     onChanged(out.needsApproval
-      ?"Reservation updated. Because the reserved time was extended, administrator approval is required again."
+      ?"Reservation updated. The extended time will be checked and approved automatically in about 1 minute."
       :"Reservation updated. The approved time was only reduced, so no new approval is required.");
   }
   async function cancel(){

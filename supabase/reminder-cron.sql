@@ -16,5 +16,21 @@ select cron.schedule(
   $$
 );
 
+select cron.schedule(
+  'equipment-reservation-auto-approval-every-minute',
+  '* * * * *',
+  $$
+  select net.http_post(
+    url := 'https://YOUR-VERCEL-APP.vercel.app/api/auto-approve',
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'x-cron-secret', 'YOUR_CRON_SECRET'
+    ),
+    body := '{}'::jsonb
+  );
+  $$
+);
+
 -- To remove:
 -- select cron.unschedule('equipment-reservation-reminder-every-minute');
+-- select cron.unschedule('equipment-reservation-auto-approval-every-minute');

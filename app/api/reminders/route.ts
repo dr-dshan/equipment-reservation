@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
-import { escapeHtml, formatSeoulRange, getAdminSupabase } from "@/lib/server";
+import { cronAuthorized, escapeHtml, formatSeoulRange, getAdminSupabase } from "@/lib/server";
 
 export async function POST(req:NextRequest){ return run(req); }
 export async function GET(req:NextRequest){ return run(req); }
 
 async function run(req:NextRequest){
   try{
-    const supplied = req.headers.get("x-cron-secret") || req.nextUrl.searchParams.get("secret");
-    if(!process.env.CRON_SECRET || supplied !== process.env.CRON_SECRET) return NextResponse.json({error:"Unauthorized."},{status:401});
+    if(!cronAuthorized(req)) return NextResponse.json({error:"Unauthorized."},{status:401});
     const key=process.env.RESEND_API_KEY, from=process.env.RESEND_FROM; if(!key||!from) throw new Error("Email env missing.");
     const now=new Date(), lower=new Date(now.getTime()+4*60000), upper=new Date(now.getTime()+6*60000);
     const supabase=getAdminSupabase();

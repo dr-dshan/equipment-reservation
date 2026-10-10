@@ -30,13 +30,17 @@ export async function GET(req: NextRequest) {
       .eq("equipment", equipment).in("status", ["pending","approved"]).order("start_time");
     if (error) throw error;
 
+    const {data:blocks,error:blockError}=await supabase.from("maintenance_blocks")
+      .select("id,title,reason,start_time,end_time").eq("equipment",equipment).order("start_time");
+    if(blockError) throw blockError;
+
     return NextResponse.json(
-      { events:(data||[]).map(r=>({
+      { events:[...(data||[]).map(r=>({
           id:r.id, title:r.name, start:r.start_time, end:r.end_time, status:r.status,
           isMine:r.user_id===user.id,
           purpose:r.user_id===user.id ? r.purpose : undefined,
           notes:r.user_id===user.id ? r.notes : undefined
-        })) },
+        })),...(blocks||[]).map(b=>({id:`maintenance:${b.id}`,title:b.title,start:b.start_time,end:b.end_time,status:"maintenance",isMine:false,reason:b.reason}))] },
       { headers:{ "Cache-Control":"no-store, no-cache, must-revalidate, max-age=0" } }
     );
   } catch(e) {
@@ -62,12 +66,16 @@ export async function POST(req: NextRequest) {
 
     const { data: conflicts } = await supabase.from("reservations").select("id").eq("equipment", equipment).in("status", ["pending","approved"]).lt("start_time", endDate.toISOString()).gt("end_time", startDate.toISOString());
     if ((conflicts||[]).length) return NextResponse.json({ error:"The selected time overlaps with an existing reservation or pending request." }, { status:409 });
+    const {data:blocks,error:blockError}=await supabase.from("maintenance_blocks").select("id").eq("equipment",equipment).lt("start_time",endDate.toISOString()).gt("end_time",startDate.toISOString());
+    if(blockError) throw blockError;
+    if((blocks||[]).length) return NextResponse.json({error:"The selected time is unavailable due to maintenance or an administrator block."},{status:409});
 
     const token = newRandomToken();
     const { data: reservation, error } = await supabase.from("reservations").insert({
       user_id:user.id, equipment, name:profile.name, email:profile.email, supervisor:profile.supervisor,
       purpose:String(purpose).trim(), notes:String(notes||"").trim(),
       start_time:startDate.toISOString(), end_time:endDate.toISOString(), status:"pending",
+      auto_approve_at:new Date(Date.now()+60000).toISOString(),
       approval_token_hash:hashApprovalToken(token)
     }).select("id").single();
     if (error) throw error;
@@ -94,6 +102,7 @@ async function sendAdminReservationEmail(input:any) {
       <p><b>Email:</b> ${escapeHtml(input.profile.email)}</p><p><b>Supervisor:</b> ${escapeHtml(input.profile.supervisor)}</p>
       <p><b>Start:</b> ${escapeHtml(range.start)}</p><p><b>End:</b> ${escapeHtml(range.end)}</p>
       <p><b>Purpose:</b> ${escapeHtml(input.purpose)}</p><p><b>Notes:</b> ${escapeHtml(input.notes||"—")}</p>
+      <p style="padding:12px;background:#fef3c7;border-radius:8px">This request will be approved automatically in about 1 minute if no reservation or maintenance block conflicts with it.</p>
       <p><a href="${approve}" style="display:inline-block;background:#111827;color:#fff;text-decoration:none;padding:12px 20px;border-radius:8px;font-weight:700;margin-right:10px">APPROVE</a>
       <a href="${decline}" style="display:inline-block;background:#fff;color:#991b1b;text-decoration:none;padding:11px 20px;border-radius:8px;font-weight:700;border:1px solid #d1d5db">DECLINE</a></p>
       <p style="font-size:12px;color:#9ca3af">Reservation ID: ${escapeHtml(input.id)}</p>
@@ -129,6 +138,10 @@ export async function PATCH(req:NextRequest){
       .lt("start_time",newEnd.toISOString()).gt("end_time",newStart.toISOString());
     if(conflictError) throw conflictError;
     if((conflicts||[]).length) return NextResponse.json({error:"The edited time overlaps with another reservation or pending request."},{status:409});
+    const {data:blocks,error:blockError}=await supabase.from("maintenance_blocks").select("id")
+      .eq("equipment",r.equipment).lt("start_time",newEnd.toISOString()).gt("end_time",newStart.toISOString());
+    if(blockError) throw blockError;
+    if((blocks||[]).length) return NextResponse.json({error:"The edited time overlaps with maintenance or an administrator block."},{status:409});
 
     const oldStart=new Date(r.start_time), oldEnd=new Date(r.end_time);
     // No reapproval only when the new interval is wholly contained inside the old approved interval.
@@ -146,6 +159,7 @@ export async function PATCH(req:NextRequest){
       update.status="pending";
       update.approval_token_hash=hashApprovalToken(token);
       update.reviewed_at=null;
+      update.auto_approve_at=new Date(Date.now()+60000).toISOString();
     }
 
     const {error:updateError}=await supabase.from("reservations").update(update).eq("id",id);

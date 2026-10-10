@@ -12,7 +12,7 @@ import EditReservationModal from "./EditReservationModal";
 import Nav from "./Nav";
 
 type Me = { id:string; email:string; name:string; supervisor:string; status:string; isAdmin:boolean; permissions:string[] };
-type Event = { id:string; title:string; start:string; end:string; status:"pending"|"approved"; isMine:boolean; purpose?:string; notes?:string };
+type Event = { id:string; title:string; start:string; end:string; status:"pending"|"approved"|"maintenance"; isMine:boolean; purpose?:string; notes?:string; reason?:string };
 
 export default function BookingCalendar(){
   const router = useRouter();
@@ -110,6 +110,7 @@ export default function BookingCalendar(){
         <div className="help">
           <span className="legend"><span className="dot approved"/> Approved</span>
           <span className="legend"><span className="dot pending"/> Pending</span>
+          <span className="legend"><span className="dot maintenance"/> Maintenance / Blocked</span>
           <span>{allowed ? "You can reserve this equipment." : "You do not have permission for this equipment."}</span>
         </div>
         {visibleEquipment.length === 0 ? (
@@ -131,10 +132,11 @@ export default function BookingCalendar(){
               dateClick={click}
               eventClick={(arg)=>{
                 const mine=events.find(e=>e.id===arg.event.id);
-                if(mine?.isMine) setEditing(mine);
+                if(mine?.status==="maintenance") setMsg(mine.reason||"This time is blocked by the administrator.");
+                else if(mine?.isMine) setEditing(mine);
                 else setMsg("Only the owner can edit or cancel this reservation.");
               }}
-              events={events.map(e=>({ id:e.id, title:e.title, start:e.start, end:e.end, classNames:[e.status==="approved"?"event-approved":"event-pending"] }))}
+              events={events.map(e=>({ id:e.id, title:e.title, start:e.start, end:e.end, classNames:[e.status==="approved"?"event-approved":e.status==="maintenance"?"event-maintenance":"event-pending"] }))}
               eventContent={(arg)=><div><strong>{arg.timeText}</strong><div>{arg.event.title}</div></div>}
             />
             <div className="status">{msg}</div>
@@ -142,7 +144,7 @@ export default function BookingCalendar(){
         )}
       </section>
 
-      {selected && <BookingModal me={me} equipment={equipment} initialStart={selected} onClose={()=>setSelected(null)} onSubmitted={async()=>{setSelected(null); setMsg("Reservation request submitted. Approval is pending."); await load();}} />}
+      {selected && <BookingModal me={me} equipment={equipment} initialStart={selected} onClose={()=>setSelected(null)} onSubmitted={async()=>{setSelected(null); setMsg("Reservation submitted. It will be approved automatically in about 1 minute if the slot remains available."); await load();}} />}
       {editing && <EditReservationModal reservation={{...editing,equipment}} onClose={()=>setEditing(null)} onChanged={async(message)=>{setEditing(null);setMsg(message);await load();}} />}
     </>
   );

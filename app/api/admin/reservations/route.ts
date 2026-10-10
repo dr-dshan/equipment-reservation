@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAdminSupabase, requireAdmin } from "@/lib/server";
+import { getAdminSupabase, requireAdmin, sendReservationResultEmail } from "@/lib/server";
 
 export async function GET(req:NextRequest){
   try{
@@ -34,6 +34,10 @@ export async function PATCH(req:NextRequest){
       if(conflictError) throw conflictError;
       if((conflicts||[]).length)
         return NextResponse.json({error:"Another approved reservation overlaps with this request."},{status:409});
+      const {data:blocks,error:blockError}=await supabase.from("maintenance_blocks").select("id")
+        .eq("equipment",r.equipment).lt("start_time",r.end_time).gt("end_time",r.start_time);
+      if(blockError) throw blockError;
+      if((blocks||[]).length) return NextResponse.json({error:"This time is blocked for maintenance."},{status:409});
     }
 
     const status=action==="approve"?"approved":"declined";
@@ -43,19 +47,7 @@ export async function PATCH(req:NextRequest){
     if(updateError) throw updateError;
 
     // Notify requester, but do not undo the admin decision if email delivery fails.
-    try{
-      const {Resend}=await import("resend");
-      const resend=new Resend(process.env.RESEND_API_KEY);
-      const from=process.env.RESEND_FROM;
-      if(from && r.email){
-        const {error}=await resend.emails.send({
-          from,to:r.email,
-          subject:`Equipment reservation ${status}: ${r.equipment}`,
-          html:`<p>Hello ${r.name},</p><p>Your <b>${r.equipment}</b> reservation has been <b>${status}</b>.</p>`
-        });
-        if(error) console.error("Requester result email failed:",error);
-      }
-    }catch(e){console.error("Requester result email failed:",e)}
+    try{await sendReservationResultEmail(r,status)}catch(e){console.error("Requester result email failed:",e)}
 
     return NextResponse.json({ok:true,status});
   }catch(e:any){

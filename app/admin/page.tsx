@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getBrowserSupabase, getValidSession } from "@/lib/supabaseClient";
 import { EQUIPMENT } from "@/lib/equipment";
@@ -7,12 +7,16 @@ import Nav from "@/components/Nav";
 
 type UserRow = { id:string; email:string; name:string; supervisor:string; status:string; permissions:string[] };
 type Reservation = { id:string; equipment:string; name:string; email:string; supervisor:string; purpose:string; start_time:string; end_time:string; status:string };
+type Block = {id:string;equipment:string;title:string;reason:string;start_time:string;end_time:string};
+const emptyBlock:{id:string;equipment:string;title:string;reason:string;start:string;end:string}={id:"",equipment:EQUIPMENT[0],title:"Maintenance",reason:"",start:"",end:""};
 
 export default function AdminPage(){
   const router=useRouter();
   const [token,setToken]=useState("");
   const [users,setUsers]=useState<UserRow[]>([]);
   const [reservations,setReservations]=useState<Reservation[]>([]);
+  const [blocks,setBlocks]=useState<Block[]>([]);
+  const [blockForm,setBlockForm]=useState({...emptyBlock});
   const [err,setErr]=useState("");
   const [msg,setMsg]=useState("");
 
@@ -22,6 +26,8 @@ export default function AdminPage(){
     const uj=await u.json(); setUsers(uj.users||[]);
     const r=await fetch("/api/admin/reservations",{headers:{Authorization:`Bearer ${t}`}});
     const rj=await r.json(); setReservations(rj.reservations||[]);
+    const m=await fetch("/api/admin/maintenance",{headers:{Authorization:`Bearer ${t}`}});
+    const mj=await m.json(); if(m.ok)setBlocks(mj.blocks||[]);
   }
 
   useEffect(()=>{(async()=>{const session=await getValidSession(); const t=session?.access_token; if(!t){router.replace("/login"); return;} setToken(t); await load(t);})();},[]);
@@ -111,11 +117,35 @@ export default function AdminPage(){
     setUsers(prev=>prev.filter(u=>u.id!==user.id));setMsg("User account deleted. They may sign up again.");
   }
 
+  function localInput(iso:string){const d=new Date(iso);const p=(n:number)=>String(n).padStart(2,"0");return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`}
+  async function saveBlock(e:FormEvent){
+    e.preventDefault();setErr("");setMsg("");
+    const method=blockForm.id?"PATCH":"POST";
+    const res=await fetch("/api/admin/maintenance",{method,headers:{"Content-Type":"application/json",Authorization:`Bearer ${token}`},body:JSON.stringify({...blockForm,start:new Date(blockForm.start).toISOString(),end:new Date(blockForm.end).toISOString()})});
+    const out=await res.json();if(!res.ok){setErr(out.error||"Could not save block.");return}setBlockForm({...emptyBlock});setMsg("Maintenance block saved.");await load();
+  }
+  function editBlock(b:Block){setBlockForm({id:b.id,equipment:b.equipment,title:b.title,reason:b.reason||"",start:localInput(b.start_time),end:localInput(b.end_time)});window.scrollTo({top:0,behavior:"smooth"})}
+  async function deleteBlock(b:Block){if(!window.confirm(`Delete ${b.title}?`))return;const res=await fetch(`/api/admin/maintenance?id=${encodeURIComponent(b.id)}`,{method:"DELETE",headers:{Authorization:`Bearer ${token}`}});const out=await res.json();if(!res.ok){setErr(out.error||"Could not delete block.");return}setBlocks(x=>x.filter(v=>v.id!==b.id));setMsg("Maintenance block deleted.")}
+
 
   return (
     <main className="shell">
-      <section className="header"><Nav isAdmin/><p className="eyebrow">ADMIN</p><h1>Admin Dashboard</h1><p className="subtitle">Approve users and manage equipment permissions.</p></section>
+      <section className="header"><Nav isAdmin/><p className="eyebrow">ADMIN</p><h1>Admin Dashboard</h1><p className="subtitle">Approve users, manage equipment permissions, and block equipment time for maintenance.</p></section>
       {err && <section className="card error">{err}</section>}{msg && <section className="card success">{msg}</section>}
+      <section className="card"><h2>Maintenance / Block Time</h2>
+        <form className="grid" onSubmit={saveBlock}>
+          <div className="field"><label>Equipment</label><select value={blockForm.equipment} onChange={e=>setBlockForm(f=>({...f,equipment:e.target.value}))}>{EQUIPMENT.map(x=><option key={x}>{x}</option>)}</select></div>
+          <div className="field"><label>Title</label><input required value={blockForm.title} onChange={e=>setBlockForm(f=>({...f,title:e.target.value}))}/></div>
+          <div className="field"><label>Start</label><input type="datetime-local" required value={blockForm.start} onChange={e=>setBlockForm(f=>({...f,start:e.target.value}))}/></div>
+          <div className="field"><label>End</label><input type="datetime-local" required value={blockForm.end} onChange={e=>setBlockForm(f=>({...f,end:e.target.value}))}/></div>
+          <div className="field full"><label>Reason / Notes</label><textarea value={blockForm.reason} onChange={e=>setBlockForm(f=>({...f,reason:e.target.value}))}/></div>
+          <div className="actions full">{blockForm.id&&<button type="button" className="btn" onClick={()=>setBlockForm({...emptyBlock})}>Cancel Edit</button>}<button className="btn primary">{blockForm.id?"Update Block":"Create Block"}</button></div>
+        </form>
+        <table className="table"><thead><tr><th>Equipment</th><th>Title</th><th>Time</th><th>Reason</th><th>Action</th></tr></thead><tbody>
+          {blocks.map(b=><tr key={b.id}><td>{b.equipment}</td><td>{b.title}</td><td>{new Date(b.start_time).toLocaleString()}<br/>– {new Date(b.end_time).toLocaleString()}</td><td>{b.reason||"—"}</td><td><button className="btn" onClick={()=>editBlock(b)}>Edit</button> <button className="btn red" onClick={()=>deleteBlock(b)}>Delete</button></td></tr>)}
+          {!blocks.length&&<tr><td colSpan={5}>No maintenance blocks.</td></tr>}
+        </tbody></table>
+      </section>
       <section className="card"><h2>Pending Users</h2>
         <table className="table"><thead><tr><th>Name</th><th>Email</th><th>Supervisor</th><th>Action</th></tr></thead><tbody>
           {users.filter(u=>u.status==="pending").map(u=><tr key={u.id}><td>{u.name}</td><td>{u.email}</td><td>{u.supervisor}</td><td><button className="btn primary" onClick={()=>updateUser(u,{status:"approved"})}>Approve</button> <button className="btn red" onClick={()=>updateUser(u,{status:"rejected"})}>Reject</button> <button className="btn" onClick={()=>resetPassword(u)}>Reset Password</button> <button className="btn red" onClick={()=>deleteUser(u)}>Delete User</button></td></tr>)}
